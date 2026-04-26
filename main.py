@@ -6,6 +6,7 @@
 #
 # INTEGRANTES
 # Yamid Claro Alvarez
+# Libardo Antonio Galeano Rios
 # ------------------------------------------------------------
 
 # INICIO
