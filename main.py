@@ -33,9 +33,11 @@ class Cliente(Entidad):
     
 # CLASE SERVICIO
 class Servicio(ABC):
-    def __init__(self, name, price):
+    def __init__(self, id_servicio, name, price):
+        self._id = id_servicio
         self.name = name
         self.price = price
+        self._disponible = True
     
     @abstractmethod
     def description(self):
