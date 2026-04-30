@@ -43,16 +43,173 @@ class Cliente(Entidad):
 
 # CLASE SERVICIO
 class Servicio(ABC):
-    def __init__(self, id_servicio, name, price):
+    def __init__(self, id_servicio, name, price, description=""):
         self._id = id_servicio
         self.name = name
         self.price = price
+        self._description = description    
         self._disponible = True
-
+        self._category = "General"
+        
     @abstractmethod
-    def description(self):
+    def get_details(self):
+        """Retorna detalles específicos del servicio"""
+        pass   
+    
+    @abstractmethod
+    def calculate_daily_cost(self, hours):
+        """Calcula costo según horas trabajadas"""
         pass
 
+    # Propiedades
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+
+    @property
+    def price(self):
+        return self._price
+
+    @price.setter
+    def price(self, value):
+        if value > 0:
+            self._price = value
+
+    @property
+    def disponible(self):
+        return self._disponible
+
+    @disponible.setter
+    def disponible(self, value):
+        self._disponible = value
+
+    @property
+    def category(self):
+        return self._category
+
+    @category.setter
+    def category(self, value):
+        self._category = value
+
+    def show_info(self):
+        estado = "✓ Disponible" if self._disponible else "✗ No Disponible"
+        return f"{self._name} - ${self._price:,.0f} - {estado}"
+  
+
+# CLASE SERVICIO ESTÁNDAR
+class ServicioEstandar(Servicio):
+    def __init__(self, id_servicio, name, price, description=""):
+        super().__init__(id_servicio, name, price, description)
+        self._category = "Estándar"
+        self._tiempo_base = 1  # horas mínimas
+
+    def get_details(self):
+        return f"Servicio Estándar - {self._description if self._description else 'Sin descripción'}"
+
+    def calculate_daily_cost(self, hours):
+        """Costo base por horas (sin impuestos)"""
+        if hours < self._tiempo_base:
+            hours = self._tiempo_base
+        return self._price * hours
+
+
+# CLASE SERVICIO PREMIUM
+class ServicioPremium(Servicio):
+    def __init__(self, id_servicio, name, price, description="", beneficio_extra=""):
+        super().__init__(id_servicio, name, price, description)
+        self._category = "Premium"
+        self._beneficio_extra = beneficio_extra
+        self._factor_calidad = 1.3  # 30% más caro por hora
+
+    def get_details(self):
+        detalles = f"Servicio Premium - {self._description}"
+        if self._beneficio_extra:
+            detalles += f" | Beneficio: {self._beneficio_extra}"
+        return detalles
+
+    def calculate_daily_cost(self, hours):
+        """Costo premium con factor de calidad"""
+        if hours < 1:
+            hours = 1
+        return self._price * hours * self._factor_calidad
+
+    @property
+    def beneficio_extra(self):
+        return self._beneficio_extra
+
+    @beneficio_extra.setter
+    def beneficio_extra(self, value):
+        self._beneficio_extra = value
+
+
+# CLASE SERVICIO EXPRESS
+class ServicioExpress(Servicio):
+    def __init__(self, id_servicio, name, price, description=""):
+        super().__init__(id_servicio, name, price, description)
+        self._category = "Express"
+        self._recargo_urgencia = 1.5  # 50% más caro
+
+    def get_details(self):
+        return f"Servicio Express - Entrega rápida - {self._description if self._description else 'Sin descripción'}"
+
+    def calculate_daily_cost(self, hours):
+        """Costo express con recargo por urgencia"""
+        if hours < 0.5:
+            hours = 0.5
+        costo_base = self._price * hours
+        return costo_base * self._recargo_urgencia
+
+
+# CLASE CATÁLOGO DE SERVICIOS (para gestionarlos)
+class CatalogoServicios:
+    def __init__(self):
+        self._servicios = []
+        self._ultimo_id = 0
+
+    def agregar_servicio(self, servicio):
+        """Agrega un servicio al catálogo"""
+        self._servicios.append(servicio)
+        self._ultimo_id = max(self._ultimo_id, servicio.id)
+
+    def eliminar_servicio(self, servicio_id):
+        """Elimina un servicio por ID"""
+        self._servicios = [s for s in self._servicios if s.id != servicio_id]
+
+    def buscar_servicio(self, servicio_id):
+        """Busca servicio por ID"""
+        for servicio in self._servicios:
+            if servicio.id == servicio_id:
+                return servicio
+        return None
+
+    def buscar_por_nombre(self, nombre):
+        """Busca servicios que contengan el nombre"""
+        return [s for s in self._servicios if nombre.lower() in s.name.lower()]
+
+    def listar_servicios(self):
+        """Retorna lista de todos los servicios"""
+        return self._servicios.copy()
+
+    def listar_disponibles(self):
+        """Retorna solo servicios disponibles"""
+        return [s for s in self._servicios if s.disponible]
+
+    def obtener_nuevo_id(self):
+        """Genera nuevo ID automático"""
+        self._ultimo_id += 1
+        return self._ultimo_id
+
+    def obtener_servicios_por_categoria(self, categoria):
+        """Filtra servicios por categoría"""
+        return [s for s in self._servicios if s.category == categoria]
 
 # CLASE RESERVA
 class Reserva:
@@ -96,6 +253,20 @@ class Reserva:
         base = self.calculate_cost(duration)
         with_tax = base * (1 + tax)
         return with_tax * (1 - discount)
+    
+# IMPLEMENTACIÓN CONCRETA DE RESERVA
+class ReservaEstandar(Reserva):
+    def calculate_cost(self, duration):
+        if hasattr(self.service, 'calculate_daily_cost'):
+            return self.service.calculate_daily_cost(duration)
+        return self.service.price * duration
+
+    def description(self):
+        return f"Reserva estándar del servicio {self.service.name} por {self.duration} horas"
+
+    def validate_parameters(self, **kwargs):
+        duration = kwargs.get('duration', self.duration)
+        return duration > 0 and self.service.disponible
 
     @property
     def name(self):
@@ -146,6 +317,8 @@ class main_window:
         ========================"""
         
         self.clients = []
+        self.catalogo_servicios = CatalogoServicios()
+        self.reservas = []
 
         self.view = view
         self.view.title("Software FJ - Sistema Integral de Gestión")
@@ -189,12 +362,28 @@ class main_window:
         caption.pack()
 
         self.create_widgets()
-
+        self.cargar_datos_ejemplo()
+    
+    def cargar_datos_ejemplo(self):
+        """Carga servicios de ejemplo para mostrar"""
+        servicio1 = ServicioEstandar(1, "Limpieza General", 25000, "Limpieza completa de oficinas")
+        servicio2 = ServicioPremium(2, "Mantenimiento IT", 45000, "Soporte técnico especializado", "Respuesta en 2 horas")
+        servicio3 = ServicioExpress(3, "Urgencias Eléctricas", 60000, "Atención inmediata")
+        servicio4 = ServicioEstandar(4, "Jardinería", 30000, "Mantenimiento de áreas verdes")
+        
+        self.catalogo_servicios.agregar_servicio(servicio1)
+        self.catalogo_servicios.agregar_servicio(servicio2)
+        self.catalogo_servicios.agregar_servicio(servicio3)
+        self.catalogo_servicios.agregar_servicio(servicio4)
+        
+        # Actualizar tabla de servicios
+        self.actualizar_tabla_servicios()
+        
     def create_widgets(self):
 
         style = ttk.Style()
         style.theme_use("clam")
-
+            
         # Notebook
         style.configure("TNotebook", background=self.COLOR_FONDO, borderwidth=0)
 
@@ -285,9 +474,15 @@ class main_window:
         # Notebook de clientes
         self.notebook = ttk.Notebook(self.view)
         self.notebook.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        #crear pestañas
         self.frame_clients = ttk.Frame(self.notebook)
         self.notebook.add(self.frame_clients, text="👥 Clientes")
         self.create_frame_client()
+        
+        self.frame_services = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_services, text="🔧 Servicios")
+        self.create_frame_service()
         
     def create_frame_client(self):
         from_frame = ttk.LabelFrame(self.frame_clients, text="Registrar Nuevo Cliente", padding=10)
@@ -375,8 +570,190 @@ class main_window:
         self.clients = [client for client in self.clients
         if str(client._id) != item_id]
         
+    def create_frame_service(self):
+        """Crea la pestaña de gestión de servicios"""
+        # Frame para registrar nuevo servicio
+        form_frame = ttk.LabelFrame(self.frame_services, text="Registrar Nuevo Servicio", padding=10)
+        form_frame.pack(fill="x", padx=10, pady=10)
         
+        # Tipo de servicio
+        ttk.Label(form_frame, text="Tipo de Servicio:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.service_type = ttk.Combobox(form_frame, values=["Estándar", "Premium", "Express"], width=23, state="readonly")
+        self.service_type.grid(row=0, column=1, padx=5, pady=5)
+        self.service_type.set("Estándar")
+        
+        # Nombre del servicio
+        ttk.Label(form_frame, text="Nombre:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.service_name = ttk.Entry(form_frame, width=25)
+        self.service_name.grid(row=1, column=1, padx=5, pady=5)
+        
+        # Precio
+        ttk.Label(form_frame, text="Precio por hora ($):").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        self.service_price = ttk.Entry(form_frame, width=25)
+        self.service_price.grid(row=2, column=1, padx=5, pady=5)
+        
+        # Descripción
+        ttk.Label(form_frame, text="Descripción:").grid(row=3, column=0, padx=5, pady=5, sticky="ne")
+        self.service_description = tk.Text(form_frame, width=25, height=3, font=("Arial", 10))
+        self.service_description.grid(row=3, column=1, padx=5, pady=5)
+        
+        # Beneficio extra (solo para premium)
+        ttk.Label(form_frame, text="Beneficio Extra (Premium):").grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        self.service_benefit = ttk.Entry(form_frame, width=25)
+        self.service_benefit.grid(row=4, column=1, padx=5, pady=5)
+        self.service_benefit.configure(state="disabled")
+        
+        # Habilitar/deshabilitar campo beneficio según tipo
+        def on_type_change(*args):
+            if self.service_type.get() == "Premium":
+                self.service_benefit.configure(state="normal")
+            else:
+                self.service_benefit.configure(state="disabled")
+                self.service_benefit.delete(0, tk.END)
+        
+        self.service_type.bind("<<ComboboxSelected>>", on_type_change)
+        
+        # Botones
+        button_frame = ttk.Frame(form_frame)
+        button_frame.grid(row=5, column=0, columnspan=2, pady=10)
+        
+        ttk.Button(button_frame, text="📝 Registrar Servicio", command=self.register_service).pack(side="left", padx=5)
+        
+        ttk.Button(button_frame, text="🔄 Cambiar Disponibilidad", command=self.toggle_service_availability, style="Green.TButton").pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Eliminar Servicio", command=self.delete_service, style="Red.TButton").pack(anchor="w", pady=2)
+        
+        # Lista de servicios
+        list_frame = ttk.LabelFrame(self.frame_services, text="Lista de Servicios", padding=10)
+        list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        columns = ("ID", "Nombre", "Categoría", "Precio/hora", "Disponible", "Descripción")
+        
+        self.table_service = ttk.Treeview(list_frame, columns=columns, show="headings", height=12)
+        
+        # Configurar columnas
+        self.table_service.heading("ID", text="ID")
+        self.table_service.heading("Nombre", text="Nombre")
+        self.table_service.heading("Categoría", text="Categoría")
+        self.table_service.heading("Precio/hora", text="Precio/hora")
+        self.table_service.heading("Disponible", text="Disponible")
+        self.table_service.heading("Descripción", text="Descripción")
+        
+        self.table_service.column("ID", width=50)
+        self.table_service.column("Nombre", width=180)
+        self.table_service.column("Categoría", width=100)
+        self.table_service.column("Precio/hora", width=100)
+        self.table_service.column("Disponible", width=80)
+        self.table_service.column("Descripción", width=300)
+        
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.table_service.yview)
+        self.table_service.configure(yscrollcommand=scrollbar.set)
+        self.table_service.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+      
+    def register_service(self):
+        """Registra un nuevo servicio en el sistema"""
+        tipo = self.service_type.get()
+        nombre = self.service_name.get()
+        precio_str = self.service_price.get()
+        descripcion = self.service_description.get("1.0", tk.END).strip()
+        beneficio = self.service_benefit.get() if tipo == "Premium" else ""
+        
+        # Validaciones
+        if not nombre or not precio_str:
+            messagebox.showwarning("Advertencia", "Nombre y precio son obligatorios")
+            return
+        
+        try:
+            precio = float(precio_str)
+            if precio <= 0:
+                messagebox.showwarning("Advertencia", "El precio debe ser mayor a 0")
+                return
+        except ValueError:
+            messagebox.showwarning("Advertencia", "Precio inválido")
+            return
+        
+        # Generar ID
+        new_id = self.catalogo_servicios.obtener_nuevo_id()
+        
+        # Crear servicio según tipo
+        if tipo == "Estándar":
+            servicio = ServicioEstandar(new_id, nombre, precio, descripcion)
+        elif tipo == "Premium":
+            servicio = ServicioPremium(new_id, nombre, precio, descripcion, beneficio)
+        elif tipo == "Express":
+            servicio = ServicioExpress(new_id, nombre, precio, descripcion)
+        else:
+            messagebox.showerror("Error", "Tipo de servicio no válido")
+            return
+        
+        # Agregar al catálogo
+        self.catalogo_servicios.agregar_servicio(servicio)
+        
+        # Actualizar tabla
+        self.actualizar_tabla_servicios()
+        
+        # Limpiar campos
+        self.service_name.delete(0, tk.END)
+        self.service_price.delete(0, tk.END)
+        self.service_description.delete("1.0", tk.END)
+        self.service_benefit.delete(0, tk.END)
+        self.service_type.set("Estándar")
+        
+        messagebox.showinfo("Éxito", f"Servicio '{nombre}' registrado correctamente")
+    
+    def actualizar_tabla_servicios(self):
+        """Actualiza la tabla de servicios con los datos actuales"""
+        # Limpiar tabla
+        for item in self.table_service.get_children():
+            self.table_service.delete(item)
+        
+        # Insertar servicios
+        for servicio in self.catalogo_servicios.listar_servicios():
+            disponible = "✓ Sí" if servicio.disponible else "✗ No"
+            descripcion_corta = servicio._description[:50] + "..." if len(servicio._description) > 50 else servicio._description
+            
+            self.table_service.insert("", "end", iid=str(servicio.id), values=(
+                servicio.id,
+                servicio.name,
+                servicio.category,
+                f"${servicio.price:,.0f}",
+                disponible,
+                descripcion_corta
+            ))
+    
+    def delete_service(self):
+        """Elimina un servicio seleccionado"""
+        selection = self.table_service.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un servicio")
+            return
+        
+        # Confirmar eliminación
+        if messagebox.askyesno("Confirmar", "¿Está seguro de eliminar este servicio?"):
+            servicio_id = int(selection[0])
+            self.catalogo_servicios.eliminar_servicio(servicio_id)
+            self.actualizar_tabla_servicios()
+            messagebox.showinfo("Éxito", "Servicio eliminado correctamente")
+    
+    def toggle_service_availability(self):
+        """Cambia la disponibilidad de un servicio"""
+        selection = self.table_service.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un servicio")
+            return
+        
+        servicio_id = int(selection[0])
+        servicio = self.catalogo_servicios.buscar_servicio(servicio_id)
+        
+        if servicio:
+            servicio.disponible = not servicio.disponible
+            self.actualizar_tabla_servicios()
+            estado = "disponible" if servicio.disponible else "no disponible"
+            messagebox.showinfo("Éxito", f"Servicio ahora está {estado}")
 
+        
 view = tk.Tk()
 
 app = main_window(view)
