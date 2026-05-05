@@ -212,7 +212,328 @@ class CatalogoServicios:
         return [s for s in self._servicios if s.category == categoria]
 
 # CLASE RESERVA
+# ============================================================
+# NUEVO MÓDULO DE RESERVAS
+# ============================================================
+
+class EstadoReserva(Enum):
+    """Enumeración para los estados de una reserva"""
+    PENDIENTE = "PENDIENTE"
+    CONFIRMADA = "CONFIRMADA"
+    CANCELADA = "CANCELADA"
+    COMPLETADA = "COMPLETADA"
+
+
+class ExcepcionReserva(Exception):
+    """Excepción personalizada para errores de reserva"""
+    pass
+
+
 class Reserva:
+    """Clase principal para gestionar reservas"""
+    
+    def __init__(self, cliente, servicio, duracion_horas, fecha=None):
+        """
+        Inicializa una nueva reserva
+        
+        Args:
+            cliente: Objeto Cliente
+            servicio: Objeto Servicio
+            duracion_horas: Duración en horas
+            fecha: Fecha de la reserva (datetime.date)
+        """
+        self._id = None
+        self._cliente = cliente
+        self._servicio = servicio
+        self._duracion_horas = duracion_horas
+        self._fecha = fecha or datetime.date.today()
+        self._estado = EstadoReserva.PENDIENTE
+        self._fecha_creacion = datetime.datetime.now()
+        self._fecha_confirmacion = None
+        self._fecha_cancelacion = None
+        self._costo_total = None
+        
+    @property
+    def id(self):
+        return self._id
+    
+    @id.setter
+    def id(self, value):
+        self._id = value
+    
+    @property
+    def cliente(self):
+        return self._cliente
+    
+    @property
+    def servicio(self):
+        return self._servicio
+    
+    @property
+    def duracion_horas(self):
+        return self._duracion_horas
+    
+    @property
+    def fecha(self):
+        return self._fecha
+    
+    @property
+    def estado(self):
+        return self._estado.value if isinstance(self._estado, EstadoReserva) else self._estado
+    
+    @property
+    def costo_total(self):
+        return self._costo_total
+    
+    def confirmar(self):
+        """
+        Confirma la reserva
+        
+        Raises:
+            ExcepcionReserva: Si la reserva no se puede confirmar
+        """
+        if self._estado != EstadoReserva.PENDIENTE:
+            raise ExcepcionReserva(f"No se puede confirmar una reserva en estado {self._estado.value}")
+        
+        if not self._servicio.disponible:
+            raise ExcepcionReserva(f"El servicio '{self._servicio.name}' no está disponible")
+        
+        self._estado = EstadoReserva.CONFIRMADA
+        self._fecha_confirmacion = datetime.datetime.now()
+        
+        # Calcular costo total
+        self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
+        
+    def cancelar(self):
+        """
+        Cancela la reserva
+        
+        Raises:
+            ExcepcionReserva: Si la reserva no se puede cancelar
+        """
+        if self._estado == EstadoReserva.CANCELADA:
+            raise ExcepcionReserva("La reserva ya está cancelada")
+        
+        if self._estado == EstadoReserva.COMPLETADA:
+            raise ExcepcionReserva("No se puede cancelar una reserva completada")
+        
+        self._estado = EstadoReserva.CANCELADA
+        self._fecha_cancelacion = datetime.datetime.now()
+    
+    def completar(self):
+        """
+        Marca la reserva como completada
+        
+        Raises:
+            ExcepcionReserva: Si la reserva no se puede completar
+        """
+        if self._estado != EstadoReserva.CONFIRMADA:
+            raise ExcepcionReserva(f"Solo se pueden completar reservas confirmadas. Estado actual: {self._estado.value}")
+        
+        self._estado = EstadoReserva.COMPLETADA
+    
+    def calcular_costo_con_impuesto(self, tasa_impuesto=0.19):
+        """
+        Calcula el costo total incluyendo impuesto
+        
+        Args:
+            tasa_impuesto: Tasa de impuesto (default 19%)
+        
+        Returns:
+            float: Costo total con impuesto
+        """
+        if self._costo_total is None:
+            self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
+        return self._costo_total * (1 + tasa_impuesto)
+    
+    def calcular_costo_con_descuento(self, porcentaje_descuento=0):
+        """
+        Calcula el costo total aplicando descuento
+        
+        Args:
+            porcentaje_descuento: Porcentaje de descuento (0-1)
+        
+        Returns:
+            float: Costo total con descuento
+        """
+        if self._costo_total is None:
+            self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
+        return self._costo_total * (1 - porcentaje_descuento)
+    
+    def obtener_info_completa(self):
+        """Retorna información completa de la reserva"""
+        info = {
+            "ID": self._id,
+            "Cliente": self._cliente._name,
+            "Servicio": self._servicio.name,
+            "Categoría": self._servicio.category,
+            "Duración (horas)": self._duracion_horas,
+            "Fecha": self._fecha.strftime("%d/%m/%Y") if hasattr(self._fecha, 'strftime') else str(self._fecha),
+            "Estado": self.estado,
+            "Costo Total": f"${self._costo_total:,.0f}" if self._costo_total else "No calculado",
+            "Fecha Creación": self._fecha_creacion.strftime("%d/%m/%Y %H:%M")
+        }
+        return info
+    
+    def __str__(self):
+        return f"Reserva #{self._id} - {self._cliente._name} - {self._servicio.name} - {self.estado}"
+
+
+class GestorReservas:
+    """Clase para gestionar el conjunto de reservas"""
+    
+    def __init__(self):
+        self._reservas = []
+        self._ultimo_id = 0
+    
+    def crear_reserva(self, cliente, servicio, duracion_horas, fecha=None):
+        """
+        Crea una nueva reserva
+        
+        Args:
+            cliente: Objeto Cliente
+            servicio: Objeto Servicio
+            duracion_horas: Duración en horas
+            fecha: Fecha de la reserva
+        
+        Returns:
+            Reserva: La reserva creada
+        
+        Raises:
+            ExcepcionReserva: Si hay errores en la creación
+        """
+        # Validaciones
+        if not cliente:
+            raise ExcepcionReserva("Debe seleccionar un cliente")
+        
+        if not servicio:
+            raise ExcepcionReserva("Debe seleccionar un servicio")
+        
+        if duracion_horas <= 0:
+            raise ExcepcionReserva("La duración debe ser mayor a 0 horas")
+        
+        if duracion_horas > 24:
+            raise ExcepcionReserva("La duración máxima por reserva es de 24 horas")
+        
+        # Crear reserva
+        reserva = Reserva(cliente, servicio, duracion_horas, fecha)
+        self._ultimo_id += 1
+        reserva.id = self._ultimo_id
+        
+        self._reservas.append(reserva)
+        return reserva
+    
+    def confirmar_reserva(self, reserva_id):
+        """
+        Confirma una reserva por ID
+        
+        Args:
+            reserva_id: ID de la reserva
+        
+        Returns:
+            bool: True si se confirmó correctamente
+        
+        Raises:
+            ExcepcionReserva: Si la reserva no existe o no se puede confirmar
+        """
+        reserva = self.buscar_reserva(reserva_id)
+        if not reserva:
+            raise ExcepcionReserva(f"No se encontró la reserva con ID {reserva_id}")
+        
+        reserva.confirmar()
+        return True
+    
+    def cancelar_reserva(self, reserva_id):
+        """
+        Cancela una reserva por ID
+        
+        Args:
+            reserva_id: ID de la reserva
+        
+        Returns:
+            bool: True si se canceló correctamente
+        
+        Raises:
+            ExcepcionReserva: Si la reserva no existe o no se puede cancelar
+        """
+        reserva = self.buscar_reserva(reserva_id)
+        if not reserva:
+            raise ExcepcionReserva(f"No se encontró la reserva con ID {reserva_id}")
+        
+        reserva.cancelar()
+        return True
+    
+    def completar_reserva(self, reserva_id):
+        """
+        Marca una reserva como completada
+        
+        Args:
+            reserva_id: ID de la reserva
+        
+        Returns:
+            bool: True si se completó correctamente
+        
+        Raises:
+            ExcepcionReserva: Si la reserva no existe o no se puede completar
+        """
+        reserva = self.buscar_reserva(reserva_id)
+        if not reserva:
+            raise ExcepcionReserva(f"No se encontró la reserva con ID {reserva_id}")
+        
+        reserva.completar()
+        return True
+    
+    def buscar_reserva(self, reserva_id):
+        """Busca una reserva por ID"""
+        for reserva in self._reservas:
+            if reserva.id == reserva_id:
+                return reserva
+        return None
+    
+    def listar_reservas(self, estado=None):
+        """
+        Lista todas las reservas, opcionalmente filtradas por estado
+        
+        Args:
+            estado: EstadoReserva o string para filtrar
+        
+        Returns:
+            list: Lista de reservas
+        """
+        if estado is None:
+            return self._reservas.copy()
+        
+        estado_str = estado.value if isinstance(estado, EstadoReserva) else str(estado).upper()
+        return [r for r in self._reservas if r.estado == estado_str]
+    
+    def listar_reservas_por_cliente(self, cliente_id):
+        """Lista reservas de un cliente específico"""
+        return [r for r in self._reservas if r.cliente._id == cliente_id]
+    
+    def obtener_resumen(self):
+        """Obtiene un resumen estadístico de las reservas"""
+        total = len(self._reservas)
+        pendientes = len(self.listar_reservas(EstadoReserva.PENDIENTE))
+        confirmadas = len(self.listar_reservas(EstadoReserva.CONFIRMADA))
+        canceladas = len(self.listar_reservas(EstadoReserva.CANCELADA))
+        completadas = len(self.listar_reservas(EstadoReserva.COMPLETADA))
+        
+        return {
+            "total": total,
+            "pendientes": pendientes,
+            "confirmadas": confirmadas,
+            "canceladas": canceladas,
+            "completadas": completadas
+        }
+
+
+# ============================================================
+# FIN MÓDULO DE RESERVAS
+# ============================================================
+
+
+# CLASE RESERVA (Original - Corregida)
+class ReservaOriginal(ABC):
     def __init__(self, client, service, duration):
         self.client = client
         self.service = service
@@ -220,10 +541,10 @@ class Reserva:
         self.status = "PENDIENTE"
 
     def cancel(self):
-        self.status == "CANCELADA"
+        self.status = "CANCELADA"
 
     def show(self):
-        return f"{self.client.show_info()} - {self.service.description()} - Estado: {self.status}"
+        return f"{self.client.show_info()} - {self.service.show_info()} - Estado: {self.status}"
 
     @abstractmethod
     def calculate_cost(self, duration):
@@ -253,9 +574,10 @@ class Reserva:
         base = self.calculate_cost(duration)
         with_tax = base * (1 + tax)
         return with_tax * (1 - discount)
-    
+
+
 # IMPLEMENTACIÓN CONCRETA DE RESERVA
-class ReservaEstandar(Reserva):
+class ReservaEstandar(ReservaOriginal):
     def calculate_cost(self, duration):
         if hasattr(self.service, 'calculate_daily_cost'):
             return self.service.calculate_daily_cost(duration)
@@ -267,22 +589,6 @@ class ReservaEstandar(Reserva):
     def validate_parameters(self, **kwargs):
         duration = kwargs.get('duration', self.duration)
         return duration > 0 and self.service.disponible
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def available(self):
-        return self._available
-
-    @available.setter
-    def available(self, value):
-        self._available = value
-
-    def show_info(self):
-        return f"Service: {self._name} - Base price: ${self._base_price:,.0f}"
-
 
 class main_window:
     def __init__(self, view):
@@ -306,6 +612,10 @@ class main_window:
         self.COLOR_ROJO = "#dc2626"
         self.COLOR_ROJO_HOVER = "#b91c1c"
         self.COLOR_ROJO_CLARO = "#fecaca"
+        
+        # Verde
+        self.COLOR_VERDE = "#10b981"
+        self.COLOR_VERDE_HOVER = "#059669"
 
         # Grises
         self.COLOR_GRIS = "#555555"
@@ -319,6 +629,7 @@ class main_window:
         self.clients = []
         self.catalogo_servicios = CatalogoServicios()
         self.reservas = []
+        self.gestor_reservas = GestorReservas()
 
         self.view = view
         self.view.title("Software FJ - Sistema Integral de Gestión")
@@ -361,24 +672,45 @@ class main_window:
         )
         caption.pack()
 
+        # Configurar estilos adicionales
+        self.configure_styles()
         self.create_widgets()
-        self.cargar_datos_ejemplo()
-    
-    def cargar_datos_ejemplo(self):
-        """Carga servicios de ejemplo para mostrar"""
-        servicio1 = ServicioEstandar(1, "Limpieza General", 25000, "Limpieza completa de oficinas")
-        servicio2 = ServicioPremium(2, "Mantenimiento IT", 45000, "Soporte técnico especializado", "Respuesta en 2 horas")
-        servicio3 = ServicioExpress(3, "Urgencias Eléctricas", 60000, "Atención inmediata")
-        servicio4 = ServicioEstandar(4, "Jardinería", 30000, "Mantenimiento de áreas verdes")
+
         
-        self.catalogo_servicios.agregar_servicio(servicio1)
-        self.catalogo_servicios.agregar_servicio(servicio2)
-        self.catalogo_servicios.agregar_servicio(servicio3)
-        self.catalogo_servicios.agregar_servicio(servicio4)
+    def configure_styles(self):
+        """Configura estilos adicionales para botones"""
+        style = ttk.Style()
         
-        # Actualizar tabla de servicios
-        self.actualizar_tabla_servicios()
+        # Botón verde para confirmar/completar
+        style.configure(
+            "Green.TButton",
+            font=("Arial", 10, "bold"),
+            padding=6,
+            background=self.COLOR_VERDE,
+            foreground="white",
+            borderwidth=0
+        )
         
+        style.map(
+            "Green.TButton",
+            background=[("active", self.COLOR_VERDE_HOVER)]
+        )
+        
+        # Botón naranja para confirmar
+        style.configure(
+            "Orange.TButton",
+            font=("Arial", 10, "bold"),
+            padding=6,
+            background="#f59e0b",
+            foreground="white",
+            borderwidth=0
+        )
+        
+        style.map(
+            "Orange.TButton",
+            background=[("active", "#d97706")]
+        )
+
     def create_widgets(self):
 
         style = ttk.Style()
@@ -483,6 +815,11 @@ class main_window:
         self.frame_services = ttk.Frame(self.notebook)
         self.notebook.add(self.frame_services, text="🔧 Servicios")
         self.create_frame_service()
+        
+        # NUEVA PESTAÑA DE RESERVAS
+        self.frame_reservations = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_reservations, text="📅 Reservas")
+        self.create_frame_reservations()
         
     def create_frame_client(self):
         from_frame = ttk.LabelFrame(self.frame_clients, text="Registrar Nuevo Cliente", padding=10)
@@ -752,6 +1089,313 @@ class main_window:
             self.actualizar_tabla_servicios()
             estado = "disponible" if servicio.disponible else "no disponible"
             messagebox.showinfo("Éxito", f"Servicio ahora está {estado}")
+
+# ============================================================
+    # NUEVOS MÉTODOS PARA RESERVAS
+    # ============================================================
+    
+    def create_frame_reservations(self):
+        """Crea la pestaña de gestión de reservas"""
+        
+        # Frame superior para crear nueva reserva
+        form_frame = ttk.LabelFrame(self.frame_reservations, text="Crear Nueva Reserva", padding=10)
+        form_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Selección de Cliente
+        ttk.Label(form_frame, text="Cliente:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.reserva_cliente_combo = ttk.Combobox(form_frame, width=30, state="readonly")
+        self.reserva_cliente_combo.grid(row=0, column=1, padx=5, pady=5)
+        
+        # Botón refrescar clientes
+        ttk.Button(form_frame, text="🔄", width=3, command=self.refrescar_clientes_reserva).grid(row=0, column=2, padx=5)
+        
+        # Selección de Servicio
+        ttk.Label(form_frame, text="Servicio:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.reserva_servicio_combo = ttk.Combobox(form_frame, width=30, state="readonly")
+        self.reserva_servicio_combo.grid(row=1, column=1, padx=5, pady=5)
+        
+        ttk.Button(form_frame, text="🔄", width=3, command=self.refrescar_servicios_reserva).grid(row=1, column=2, padx=5)
+        
+        # Duración
+        ttk.Label(form_frame, text="Duración (horas):").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        self.reserva_duracion = ttk.Entry(form_frame, width=25)
+        self.reserva_duracion.grid(row=2, column=1, padx=5, pady=5)
+        
+        # Fecha
+        ttk.Label(form_frame, text="Fecha (DD/MM/AAAA):").grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        self.reserva_fecha = ttk.Entry(form_frame, width=25)
+        self.reserva_fecha.grid(row=3, column=1, padx=5, pady=5)
+        self.reserva_fecha.insert(0, datetime.date.today().strftime("%d/%m/%Y"))
+        
+        # Botones de acción
+        button_frame = ttk.Frame(form_frame)
+        button_frame.grid(row=4, column=0, columnspan=3, pady=10)
+        
+        ttk.Button(button_frame, text="📅 Crear Reserva", command=self.crear_reserva).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="✅ Confirmar", command=self.confirmar_reserva, style="Orange.TButton").pack(side="left", padx=5)
+        ttk.Button(button_frame, text="❌ Cancelar", command=self.cancelar_reserva, style="Red.TButton").pack(side="left", padx=5)
+        ttk.Button(button_frame, text="⭐ Completar", command=self.completar_reserva, style="Green.TButton").pack(side="left", padx=5)
+        
+        # Frame para lista de reservas
+        list_frame = ttk.LabelFrame(self.frame_reservations, text="Lista de Reservas", padding=10)
+        list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Filtros
+        filter_frame = ttk.Frame(list_frame)
+        filter_frame.pack(fill="x", pady=5)
+        
+        ttk.Label(filter_frame, text="Filtrar por estado:").pack(side="left", padx=5)
+        self.filtro_estado = ttk.Combobox(filter_frame, values=["Todos", "PENDIENTE", "CONFIRMADA", "CANCELADA", "COMPLETADA"], 
+                                          width=15, state="readonly")
+        self.filtro_estado.pack(side="left", padx=5)
+        self.filtro_estado.set("Todos")
+        self.filtro_estado.bind("<<ComboboxSelected>>", lambda e: self.actualizar_tabla_reservas())
+        
+        ttk.Button(filter_frame, text="Buscar", command=self.actualizar_tabla_reservas).pack(side="left", padx=5)
+        ttk.Button(filter_frame, text="Actualizar", command=self.refrescar_todo_reservas).pack(side="left", padx=5)
+        
+        # Tabla de reservas
+        columns = ("ID", "Cliente", "Servicio", "Duración", "Fecha", "Estado", "Costo Total")
+        
+        self.table_reservas = ttk.Treeview(list_frame, columns=columns, show="headings", height=12)
+        
+        # Configurar columnas
+        for col in columns:
+            self.table_reservas.heading(col, text=col)
+        
+        self.table_reservas.column("ID", width=50)
+        self.table_reservas.column("Cliente", width=150)
+        self.table_reservas.column("Servicio", width=150)
+        self.table_reservas.column("Duración", width=80)
+        self.table_reservas.column("Fecha", width=100)
+        self.table_reservas.column("Estado", width=100)
+        self.table_reservas.column("Costo Total", width=120)
+        
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.table_reservas.yview)
+        self.table_reservas.configure(yscrollcommand=scrollbar.set)
+        self.table_reservas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Frame de resumen
+        resumen_frame = ttk.LabelFrame(self.frame_reservations, text="Resumen de Reservas", padding=10)
+        resumen_frame.pack(fill="x", padx=10, pady=10)
+        
+        self.resumen_label = ttk.Label(resumen_frame, text="", font=("Arial", 10))
+        self.resumen_label.pack()
+        
+        # Inicializar combos
+        self.refrescar_clientes_reserva()
+        self.refrescar_servicios_reserva()
+        self.actualizar_tabla_reservas()
+    
+    def refrescar_clientes_reserva(self):
+        """Refresca el combo de clientes"""
+        clientes_lista = [f"{c._id} - {c._name}" for c in self.clients]
+        self.reserva_cliente_combo['values'] = clientes_lista
+        if clientes_lista:
+            self.reserva_cliente_combo.set(clientes_lista[0])
+    
+    def refrescar_servicios_reserva(self):
+        """Refresca el combo de servicios (solo disponibles)"""
+        servicios_lista = [f"{s.id} - {s.name} (${s.price:,.0f}/h)" 
+                          for s in self.catalogo_servicios.listar_disponibles()]
+        self.reserva_servicio_combo['values'] = servicios_lista
+        if servicios_lista:
+            self.reserva_servicio_combo.set(servicios_lista[0])
+    
+    def crear_reserva(self):
+        """Crea una nueva reserva"""
+        try:
+            # Obtener cliente seleccionado
+            cliente_seleccionado = self.reserva_cliente_combo.get()
+            if not cliente_seleccionado:
+                messagebox.showwarning("Advertencia", "Debe seleccionar un cliente")
+                return
+            
+            cliente_id = int(cliente_seleccionado.split(" - ")[0])
+            cliente = next((c for c in self.clients if c._id == cliente_id), None)
+            
+            if not cliente:
+                messagebox.showerror("Error", "Cliente no encontrado")
+                return
+            
+            # Obtener servicio seleccionado
+            servicio_seleccionado = self.reserva_servicio_combo.get()
+            if not servicio_seleccionado:
+                messagebox.showwarning("Advertencia", "Debe seleccionar un servicio")
+                return
+            
+            servicio_id = int(servicio_seleccionado.split(" - ")[0])
+            servicio = self.catalogo_servicios.buscar_servicio(servicio_id)
+            
+            if not servicio:
+                messagebox.showerror("Error", "Servicio no encontrado")
+                return
+            
+            if not servicio.disponible:
+                messagebox.showerror("Error", "El servicio seleccionado no está disponible")
+                return
+            
+            # Obtener duración
+            duracion_str = self.reserva_duracion.get()
+            if not duracion_str:
+                messagebox.showwarning("Advertencia", "Debe ingresar la duración")
+                return
+            
+            try:
+                duracion = float(duracion_str)
+            except ValueError:
+                messagebox.showerror("Error", "Duración inválida")
+                return
+            
+            # Obtener fecha
+            fecha_str = self.reserva_fecha.get()
+            try:
+                fecha = datetime.datetime.strptime(fecha_str, "%d/%m/%Y").date()
+            except ValueError:
+                fecha = datetime.date.today()
+            
+            # Crear reserva usando el gestor
+            reserva = self.gestor_reservas.crear_reserva(cliente, servicio, duracion, fecha)
+            
+            # Actualizar tabla
+            self.actualizar_tabla_reservas()
+            self.actualizar_resumen_reservas()
+            
+            # Limpiar campos
+            self.reserva_duracion.delete(0, tk.END)
+            
+            messagebox.showinfo("Éxito", f"Reserva #{reserva.id} creada correctamente.\nEstado: {reserva.estado}")
+            
+        except ExcepcionReserva as e:
+            messagebox.showerror("Error de Reserva", str(e))
+        except Exception as e:
+            messagebox.showerror("Error", f"Error inesperado: {str(e)}")
+            traceback.print_exc()
+    
+    def confirmar_reserva(self):
+        """Confirma la reserva seleccionada"""
+        selection = self.table_reservas.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione una reserva")
+            return
+        
+        reserva_id = int(selection[0])
+        
+        try:
+            self.gestor_reservas.confirmar_reserva(reserva_id)
+            self.actualizar_tabla_reservas()
+            self.actualizar_resumen_reservas()
+            
+            # Mostrar información de costo
+            reserva = self.gestor_reservas.buscar_reserva(reserva_id)
+            if reserva and reserva.costo_total:
+                costo_con_impuesto = reserva.calcular_costo_con_impuesto()
+                messagebox.showinfo("Confirmación Exitosa", 
+                                   f"Reserva #{reserva_id} confirmada.\n\n"
+                                   f"Costo base: ${reserva.costo_total:,.0f}\n"
+                                   f"Costo con IVA (19%): ${costo_con_impuesto:,.0f}")
+            else:
+                messagebox.showinfo("Éxito", f"Reserva #{reserva_id} confirmada correctamente")
+                
+        except ExcepcionReserva as e:
+            messagebox.showerror("Error", str(e))
+        except Exception as e:
+            messagebox.showerror("Error", f"Error inesperado: {str(e)}")
+    
+    def cancelar_reserva(self):
+        """Cancela la reserva seleccionada"""
+        selection = self.table_reservas.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione una reserva")
+            return
+        
+        reserva_id = int(selection[0])
+        
+        if not messagebox.askyesno("Confirmar", f"¿Está seguro de cancelar la reserva #{reserva_id}?"):
+            return
+        
+        try:
+            self.gestor_reservas.cancelar_reserva(reserva_id)
+            self.actualizar_tabla_reservas()
+            self.actualizar_resumen_reservas()
+            messagebox.showinfo("Éxito", f"Reserva #{reserva_id} cancelada correctamente")
+        except ExcepcionReserva as e:
+            messagebox.showerror("Error", str(e))
+        except Exception as e:
+            messagebox.showerror("Error", f"Error inesperado: {str(e)}")
+    
+    def completar_reserva(self):
+        """Marca como completada la reserva seleccionada"""
+        selection = self.table_reservas.selection()
+        
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione una reserva")
+            return
+        
+        reserva_id = int(selection[0])
+        
+        try:
+            self.gestor_reservas.completar_reserva(reserva_id)
+            self.actualizar_tabla_reservas()
+            self.actualizar_resumen_reservas()
+            messagebox.showinfo("Éxito", f"Reserva #{reserva_id} completada correctamente")
+        except ExcepcionReserva as e:
+            messagebox.showerror("Error", str(e))
+        except Exception as e:
+            messagebox.showerror("Error", f"Error inesperado: {str(e)}")
+    
+    def actualizar_tabla_reservas(self):
+        """Actualiza la tabla de reservas con los datos actuales"""
+        # Limpiar tabla
+        for item in self.table_reservas.get_children():
+            self.table_reservas.delete(item)
+        
+        # Obtener filtro
+        filtro = self.filtro_estado.get()
+        
+        if filtro == "Todos":
+            reservas = self.gestor_reservas.listar_reservas()
+        else:
+            reservas = self.gestor_reservas.listar_reservas(filtro)
+        
+        # Insertar reservas
+        for reserva in reservas:
+            estado = reserva.estado
+            # Color según estado (opcional)
+            costo_str = f"${reserva.costo_total:,.0f}" if reserva.costo_total else "No calculado"
+            
+            self.table_reservas.insert("", "end", iid=str(reserva.id), values=(
+                reserva.id,
+                reserva.cliente._name,
+                reserva.servicio.name,
+                f"{reserva.duracion_horas}h",
+                reserva.fecha.strftime("%d/%m/%Y") if hasattr(reserva.fecha, 'strftime') else str(reserva.fecha),
+                estado,
+                costo_str
+            ))
+    
+    def actualizar_resumen_reservas(self):
+        """Actualiza el resumen estadístico de reservas"""
+        resumen = self.gestor_reservas.obtener_resumen()
+        
+        texto = (f"📊 Resumen: Total: {resumen['total']} | "
+                f"⏳ Pendientes: {resumen['pendientes']} | "
+                f"✅ Confirmadas: {resumen['confirmadas']} | "
+                f"❌ Canceladas: {resumen['canceladas']} | "
+                f"⭐ Completadas: {resumen['completadas']}")
+        
+        self.resumen_label.config(text=texto)
+    
+    def refrescar_todo_reservas(self):
+        """Refresca todos los datos de la pestaña de reservas"""
+        self.refrescar_clientes_reserva()
+        self.refrescar_servicios_reserva()
+        self.actualizar_tabla_reservas()
+        self.actualizar_resumen_reservas()
+
 
         
 view = tk.Tk()
