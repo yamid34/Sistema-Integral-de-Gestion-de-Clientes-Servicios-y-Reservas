@@ -840,8 +840,8 @@ class main_window:
         button_frame = ttk.Frame(from_frame)
         button_frame.grid(row=3, column=1, sticky="w", pady=10)
         
-        ttk.Button(button_frame, text="Registrar Cliente", command=self.register_client).pack(anchor="w", pady=2)
-        ttk.Button(button_frame, text="Eliminar Cliente", command=self.delete_client, style="Red.TButton").pack(anchor="w", pady=2)
+        ttk.Button(button_frame, text="Registrar Cliente", command=self.register_client).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Eliminar Cliente", command=self.delete_client, style="Red.TButton").pack(side="left", padx=5)
         
         list_frame = ttk.LabelFrame(self.frame_clients, text="Lista de Clientes", padding=10)
         list_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -911,31 +911,31 @@ class main_window:
         """Crea la pestaña de gestión de servicios"""
         # Frame para registrar nuevo servicio
         form_frame = ttk.LabelFrame(self.frame_services, text="Registrar Nuevo Servicio", padding=10)
-        form_frame.pack(fill="x", padx=10, pady=10)
+        form_frame.pack(fill="x", padx=10, pady=10, anchor="w")
         
         # Tipo de servicio
-        ttk.Label(form_frame, text="Tipo de Servicio:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Tipo de Servicio:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.service_type = ttk.Combobox(form_frame, values=["Estándar", "Premium", "Express"], width=23, state="readonly")
         self.service_type.grid(row=0, column=1, padx=5, pady=5)
         self.service_type.set("Estándar")
         
         # Nombre del servicio
-        ttk.Label(form_frame, text="Nombre:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Nombre:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.service_name = ttk.Entry(form_frame, width=25)
         self.service_name.grid(row=1, column=1, padx=5, pady=5)
         
         # Precio
-        ttk.Label(form_frame, text="Precio por hora ($):").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Precio por hora ($):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.service_price = ttk.Entry(form_frame, width=25)
         self.service_price.grid(row=2, column=1, padx=5, pady=5)
         
         # Descripción
-        ttk.Label(form_frame, text="Descripción:").grid(row=3, column=0, padx=5, pady=5, sticky="ne")
-        self.service_description = tk.Text(form_frame, width=25, height=3, font=("Arial", 10))
+        ttk.Label(form_frame, text="Descripción:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        self.service_description = ttk.Entry(form_frame, width=25)
         self.service_description.grid(row=3, column=1, padx=5, pady=5)
         
         # Beneficio extra (solo para premium)
-        ttk.Label(form_frame, text="Beneficio Extra (Premium):").grid(row=4, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Beneficio Extra (Premium):").grid(row=4, column=0, padx=5, pady=5, sticky="w")
         self.service_benefit = ttk.Entry(form_frame, width=25)
         self.service_benefit.grid(row=4, column=1, padx=5, pady=5)
         self.service_benefit.configure(state="disabled")
@@ -954,9 +954,9 @@ class main_window:
         button_frame = ttk.Frame(form_frame)
         button_frame.grid(row=5, column=0, columnspan=2, pady=10)
         
-        ttk.Button(button_frame, text="📝 Registrar Servicio", command=self.register_service).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Registrar Servicio", command=self.register_service).pack(side="left", padx=5)
         
-        ttk.Button(button_frame, text="🔄 Cambiar Disponibilidad", command=self.toggle_service_availability, style="Green.TButton").pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Cambiar Disponibilidad", command=self.toggle_service_availability, style="Green.TButton").pack(side="left", padx=5)
         ttk.Button(button_frame, text="Eliminar Servicio", command=self.delete_service, style="Red.TButton").pack(anchor="w", pady=2)
         
         # Lista de servicios
@@ -992,7 +992,7 @@ class main_window:
         tipo = self.service_type.get()
         nombre = self.service_name.get()
         precio_str = self.service_price.get()
-        descripcion = self.service_description.get("1.0", tk.END).strip()
+        descripcion = self.service_description.get().strip()
         beneficio = self.service_benefit.get() if tipo == "Premium" else ""
         
         # Validaciones
@@ -1032,7 +1032,7 @@ class main_window:
         # Limpiar campos
         self.service_name.delete(0, tk.END)
         self.service_price.delete(0, tk.END)
-        self.service_description.delete("1.0", tk.END)
+        self.service_description.delete(0, tk.END)
         self.service_benefit.delete(0, tk.END)
         self.service_type.set("Estándar")
         
@@ -1102,7 +1102,7 @@ class main_window:
         form_frame.pack(fill="x", padx=10, pady=10)
         
         # Selección de Cliente
-        ttk.Label(form_frame, text="Cliente:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Cliente:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.reserva_cliente_combo = ttk.Combobox(form_frame, width=30, state="readonly")
         self.reserva_cliente_combo.grid(row=0, column=1, padx=5, pady=5)
         
@@ -1110,19 +1110,19 @@ class main_window:
         ttk.Button(form_frame, text="🔄", width=3, command=self.refrescar_clientes_reserva).grid(row=0, column=2, padx=5)
         
         # Selección de Servicio
-        ttk.Label(form_frame, text="Servicio:").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Servicio:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.reserva_servicio_combo = ttk.Combobox(form_frame, width=30, state="readonly")
         self.reserva_servicio_combo.grid(row=1, column=1, padx=5, pady=5)
         
         ttk.Button(form_frame, text="🔄", width=3, command=self.refrescar_servicios_reserva).grid(row=1, column=2, padx=5)
         
         # Duración
-        ttk.Label(form_frame, text="Duración (horas):").grid(row=2, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Duración (horas):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.reserva_duracion = ttk.Entry(form_frame, width=25)
         self.reserva_duracion.grid(row=2, column=1, padx=5, pady=5)
         
         # Fecha
-        ttk.Label(form_frame, text="Fecha (DD/MM/AAAA):").grid(row=3, column=0, padx=5, pady=5, sticky="e")
+        ttk.Label(form_frame, text="Fecha (DD/MM/AAAA):").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.reserva_fecha = ttk.Entry(form_frame, width=25)
         self.reserva_fecha.grid(row=3, column=1, padx=5, pady=5)
         self.reserva_fecha.insert(0, datetime.date.today().strftime("%d/%m/%Y"))
