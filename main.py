@@ -4,6 +4,8 @@ from tkinter import ttk, messagebox, scrolledtext
 from abc import ABC, abstractmethod
 import datetime
 import traceback
+import logging
+import re
 from enum import Enum
 
 # ------------------------------------------------------------
@@ -18,6 +20,15 @@ from enum import Enum
 # ------------------------------------------------------------
 
 # INICIO
+# ============================================================
+# CONFIGURACIÓN DE LOGS
+# ============================================================
+
+logging.basicConfig(
+    filename="logs_error.log",
+    level=logging.ERROR,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # CLASE ABSTRACTA BASE
 class Entidad(ABC):
@@ -226,6 +237,24 @@ class EstadoReserva(Enum):
 
 class ExcepcionReserva(Exception):
     """Excepción personalizada para errores de reserva"""
+    pass
+
+class ExcepcionCliente(Exception):
+    """Excepción base de clientes"""
+    pass
+
+
+class ClienteInvalidoError(ExcepcionCliente):
+    """Error de validación de cliente"""
+    pass
+
+
+class ClienteDuplicadoError(ExcepcionCliente):
+    """Cliente ya registrado"""
+    pass
+
+class ClienteNoEncontradoError(ExcepcionCliente):
+    """Cliente no encontrado"""
     pass
 
 
@@ -861,51 +890,214 @@ class main_window:
          
     def register_client(self):
 
-        name = self.entry_name.get()
-        email = self.entry_email.get()
-        phone = self.entry_phone.get()
+        try:
 
-        if not name or not email or not phone:
-            messagebox.showwarning("Advertencia", "Todos los campos son obligatorios")
-            return
+            # Obtener datos
+            name = self.entry_name.get().strip()
+            email = self.entry_email.get().strip()
+            phone = self.entry_phone.get().strip()
 
-        # Generar ID automático
-        if len(self.clients) == 0:
-            new_id = 1
+            # ====================================
+            # VALIDAR NOMBRE
+            # ====================================
+
+            if not name:
+                raise ClienteInvalidoError("El nombre es obligatorio")
+
+            # Solo letras y espacios
+            if not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+", name):
+                raise ClienteInvalidoError("El nombre solo puede contener letras y espacios")
+
+            if len(name) < 3:
+                raise ClienteInvalidoError("El nombre es demasiado corto")
+
+            # ====================================
+            # VALIDAR EMAIL
+            # ====================================
+
+            if not email:
+                raise ClienteInvalidoError("El correo es obligatorio")
+
+            # Validación básica de email
+            if "@" not in email or "." not in email:
+                raise ClienteInvalidoError("Ingrese un correo válido")
+
+            # Expresión regular email
+            patron_email = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+
+            if not re.fullmatch(patron_email, email):
+                raise ClienteInvalidoError("Formato de correo inválido")
+
+            # ====================================
+            # VALIDAR TELÉFONO
+            # ====================================
+
+            if not phone:
+                raise ClienteInvalidoError("El teléfono es obligatorio")
+
+            if not phone.isdigit():
+                raise ClienteInvalidoError("El teléfono solo debe contener números")
+                
+            # Máximo 10 dígitos
+            if len(phone) != 10:
+                raise ClienteInvalidoError("El teléfono debe tener exactamente 10 dígitos")
+
+            # ====================================
+            # VALIDAR DUPLICADOS
+            # ====================================
+
+            for client in self.clients:
+
+                if client._email.lower() == email.lower():
+                    raise ClienteDuplicadoError("Ya existe un cliente con ese correo")
+
+            # ====================================
+            # GENERAR ID
+            # ====================================
+
+            if len(self.clients) == 0:
+                new_id = 1
+            else:
+                new_id = self.clients[-1]._id + 1
+
+            # ====================================
+            # CREAR CLIENTE
+            # ====================================
+
+            try:
+                client = Cliente(new_id, name, email, phone)
+
+            except Exception as e:
+                raise ClienteInvalidoError("Error creando el cliente") from e
+
+        # ====================================
+        # EXCEPCIONES PERSONALIZADAS
+        # ====================================
+
+        except ClienteDuplicadoError as e:
+
+            logging.error(f"Cliente duplicado: {str(e)}")
+
+            messagebox.showerror("Cliente Duplicado", str(e))
+
+        except ClienteInvalidoError as e:
+            logging.error(f"Cliente inválido: {str(e)}")
+            messagebox.showerror("Datos Inválidos", str(e))
+
+        # ====================================
+        # ERROR GENERAL
+        # ====================================
+
+        except Exception as e:
+            logging.error(f"Error inesperado:\n{traceback.format_exc()}")
+            messagebox.showerror("Error", "Ocurrió un error inesperado")
+
+        # ====================================
+        # ELSE
+        # ====================================
+
         else:
-            new_id = self.clients[-1]._id + 1
 
-        # Crear objeto Cliente
-        client = Cliente(new_id, name, email, phone)
+            self.clients.append(client)
 
-        # Guardar objeto en la lista
-        self.clients.append(client)
+            self.table_client.insert(
+            "",
+            "end",
+            iid=str(client._id),
+            values=(
+                client._id,
+                client._name,
+                client._email,
+                client._phone
+            ))
 
-        # Mostrar en tabla
-        self.table_client.insert("", "end",
-        iid=str(client._id),
-        values=(client._id, client._name, client._email, client._phone))
+            logging.info(f"Cliente registrado: {client._name}")
 
-        # Limpiar campos
-        self.entry_name.delete(0, tk.END)
-        self.entry_email.delete(0, tk.END)
-        self.entry_phone.delete(0, tk.END)
+            messagebox.showinfo("Éxito","Cliente registrado correctamente")
+            self.entry_name.delete(0, tk.END)
+            self.entry_email.delete(0, tk.END)
+            self.entry_phone.delete(0, tk.END)           
         
     def delete_client(self):
-        selection = self.table_client.selection()
+        try:
+            # ====================================
+            # VALIDAR SELECCIÓN
+            # ====================================
 
-        if not selection:
-            messagebox.showwarning("Advertencia", "Seleccione un cliente")
-            return
+            selection = self.table_client.selection()
 
-        item_id = selection[0]
+            if not selection:
+                raise ClienteNoEncontradoError("Debe seleccionar un cliente")
 
-        # Eliminar de la tabla
-        self.table_client.delete(item_id)
+            item_id = selection[0]
 
-        # Eliminar de la lista
-        self.clients = [client for client in self.clients
-        if str(client._id) != item_id]
+            # ====================================
+            # BUSCAR CLIENTE
+            # ====================================
+
+            cliente = next(
+            (
+                client for client in self.clients
+                if str(client._id) == item_id), None)
+
+            if not cliente:
+                raise ClienteNoEncontradoError("El cliente seleccionado no existe")
+
+            # ====================================
+            # VALIDAR RESERVAS ASOCIADAS
+            # ====================================
+
+            reservas_cliente = self.gestor_reservas.listar_reservas_por_cliente(cliente._id)
+
+            if reservas_cliente:
+                raise ClienteInvalidoError("No se puede eliminar un cliente con reservas asociadas")
+
+            # ====================================
+            # CONFIRMAR ELIMINACIÓN
+            # ====================================
+
+            confirmar = messagebox.askyesno("Confirmar Eliminación",f"¿Desea eliminar el cliente {cliente._name}?")
+
+            if not confirmar:
+                return
+
+        # ====================================
+        # EXCEPCIONES PERSONALIZADAS
+        # ====================================
+
+        except ClienteNoEncontradoError as e:
+            logging.error(f"Cliente no encontrado: {str(e)}")
+            messagebox.showwarning("Cliente", str(e))
+
+        except ClienteInvalidoError as e:
+            logging.error(f"No se puede eliminar cliente: {str(e)}")
+            messagebox.showerror("Error",str(e))
+
+        # ====================================
+        # ERROR GENERAL
+        # ====================================
+
+        except Exception as e:
+            logging.error(f"Error eliminando cliente:\n{traceback.format_exc()}")
+            messagebox.showerror("Error", "Ocurrió un error eliminando el cliente")
+
+        # ====================================
+        # ELSE
+        # ====================================
+
+        else:
+            # Eliminar de tabla
+            self.table_client.delete(item_id)
+
+            # Eliminar de lista
+            self.clients = [
+            client for client in self.clients
+            if str(client._id) != item_id
+            ]
+
+            logging.info(f"Cliente eliminado: {cliente._name}")
+
+            messagebox.showinfo("Éxito", "Cliente eliminado correctamente")
         
     def create_frame_service(self):
         """Crea la pestaña de gestión de servicios"""
