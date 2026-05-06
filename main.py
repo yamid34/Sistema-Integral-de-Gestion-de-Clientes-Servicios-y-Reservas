@@ -17,6 +17,7 @@ from enum import Enum
 # INTEGRANTES
 # Yamid Claro Alvarez
 # Libardo Antonio Galeano Rios
+# Oscar Fernando Arias Alba 
 # ------------------------------------------------------------
 
 # INICIO
