@@ -1182,55 +1182,121 @@ class main_window:
       
     def register_service(self):
         """Registra un nuevo servicio en el sistema"""
-        tipo = self.service_type.get()
-        nombre = self.service_name.get()
-        precio_str = self.service_price.get()
-        descripcion = self.service_description.get().strip()
-        beneficio = self.service_benefit.get() if tipo == "Premium" else ""
-        
-        # Validaciones
-        if not nombre or not precio_str:
-            messagebox.showwarning("Advertencia", "Nombre y precio son obligatorios")
-            return
-        
         try:
-            precio = float(precio_str)
-            if precio <= 0:
-                messagebox.showwarning("Advertencia", "El precio debe ser mayor a 0")
+            tipo = self.service_type.get()
+            nombre = self.service_name.get()
+            precio_str = self.service_price.get()
+            descripcion = self.service_description.get().strip()
+            beneficio = self.service_benefit.get() if tipo == "Premium" else ""
+        
+            # ====================================
+            # VALIDACIONES DEL NOMBRE
+            # ====================================
+            if not nombre:
+                messagebox.showwarning("Advertencia", "El nombre del servicio es obligatorio")
                 return
-        except ValueError:
-            messagebox.showwarning("Advertencia", "Precio inválido")
-            return
+            
+            if len(nombre) < 3:
+                messagebox.showwarning("Advertencia", "El nombre del servicio debe tener al menos 3 caracteres")
+                return
+            
+            if len(nombre) > 100:
+                messagebox.showwarning("Advertencia", "El nombre del servicio no puede exceder los 100 caracteres")
+                return
+            
+            # Validar que el nombre no contenga caracteres especiales no deseados
+            if not re.match(r'^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s\-\.]+$', nombre):
+                messagebox.showwarning("Advertencia", "El nombre solo puede contener letras, números, espacios, guiones y puntos")
+                return
+            
+            # Verificar si ya existe un servicio con el mismo nombre
+            for servicio in self.catalogo_servicios.listar_servicios():
+                if servicio.name.lower() == nombre.lower():
+                    messagebox.showwarning("Advertencia", f"Ya existe un servicio con el nombre '{nombre}'")
+                    return
+            
+            # ====================================
+            # VALIDACIONES DEL PRECIO
+            # ====================================
+            if not precio_str:
+                messagebox.showwarning("Advertencia", "El precio del servicio es obligatorio")
+                return
+            
+            try:
+                precio = float(precio_str)
+                
+                # Validar que sea un número positivo
+                if precio <= 0:
+                    messagebox.showwarning("Advertencia", "El precio debe ser mayor a 0")
+                    return
+                
+                # Validar que no sea demasiado grande (máximo 1 millón por hora)
+                if precio > 1000000:
+                    messagebox.showwarning("Advertencia", "El precio no puede superar $1,000,000 por hora")
+                    return
+                
+                # Validar que tenga máximo 2 decimales
+                if len(precio_str.split('.')[-1]) > 2 if '.' in precio_str else False:
+                    messagebox.showwarning("Advertencia", "El precio solo puede tener máximo 2 decimales")
+                    return
+                    
+            except ValueError:
+                messagebox.showwarning("Advertencia", "Por favor ingrese un precio válido (solo números)")
+                return
+            
+            # ====================================
+            # VALIDACIONES DE DESCRIPCIÓN
+            # ====================================
+            if descripcion and len(descripcion) > 500:
+                messagebox.showwarning("Advertencia", "La descripción no puede exceder los 500 caracteres")
+                return
+            
+            # ====================================
+            # VALIDACIÓN PARA SERVICIO PREMIUM
+            # ====================================
+            if tipo == "Premium" and not beneficio:
+                messagebox.showwarning("Advertencia", "Los servicios Premium requieren un beneficio extra")
+                return
+            
+            if tipo == "Premium" and len(beneficio) > 200:
+                messagebox.showwarning("Advertencia", "El beneficio extra no puede exceder los 200 caracteres")
+                return
         
-        # Generar ID
-        new_id = self.catalogo_servicios.obtener_nuevo_id()
-        
-        # Crear servicio según tipo
-        if tipo == "Estándar":
-            servicio = ServicioEstandar(new_id, nombre, precio, descripcion)
-        elif tipo == "Premium":
-            servicio = ServicioPremium(new_id, nombre, precio, descripcion, beneficio)
-        elif tipo == "Express":
-            servicio = ServicioExpress(new_id, nombre, precio, descripcion)
-        else:
-            messagebox.showerror("Error", "Tipo de servicio no válido")
-            return
-        
-        # Agregar al catálogo
-        self.catalogo_servicios.agregar_servicio(servicio)
-        
-        # Actualizar tabla
-        self.actualizar_tabla_servicios()
-        
-        # Limpiar campos
-        self.service_name.delete(0, tk.END)
-        self.service_price.delete(0, tk.END)
-        self.service_description.delete(0, tk.END)
-        self.service_benefit.delete(0, tk.END)
-        self.service_type.set("Estándar")
-        
-        messagebox.showinfo("Éxito", f"Servicio '{nombre}' registrado correctamente")
+            # Generar ID
+            new_id = self.catalogo_servicios.obtener_nuevo_id()
+            
+            # Crear servicio según tipo
+            if tipo == "Estándar":
+                servicio = ServicioEstandar(new_id, nombre, precio, descripcion)
+            elif tipo == "Premium":
+                servicio = ServicioPremium(new_id, nombre, precio, descripcion, beneficio)
+            elif tipo == "Express":
+                servicio = ServicioExpress(new_id, nombre, precio, descripcion)
+            else:
+                messagebox.showerror("Error", "Tipo de servicio no válido")
+                return
+            
+            # Agregar al catálogo
+            self.catalogo_servicios.agregar_servicio(servicio)
+            
+            # Actualizar tabla
+            self.actualizar_tabla_servicios()
+            
+            # Limpiar campos
+            self.service_name.delete(0, tk.END)
+            self.service_price.delete(0, tk.END)
+            self.service_description.delete(0, tk.END)
+            self.service_benefit.delete(0, tk.END)
+            self.service_type.set("Estándar")
+            
+            logging.info(f"Servicio registrado: {nombre} - Tipo: {tipo} - Precio: ${precio:,.0f}")
+            
+            messagebox.showinfo("Éxito", f"Servicio '{nombre}' registrado correctamente")
     
+        except Exception as e:
+            logging.error(f"Error registrando servicio:\n{traceback.format_exc()}")
+            messagebox.showerror("Error", f"Ocurrió un error inesperado: {str(e)}")
+            
     def actualizar_tabla_servicios(self):
         """Actualiza la tabla de servicios con los datos actuales"""
         # Limpiar tabla
@@ -1253,35 +1319,113 @@ class main_window:
     
     def delete_service(self):
         """Elimina un servicio seleccionado"""
-        selection = self.table_service.selection()
+        try:
+            selection = self.table_service.selection()
         
-        if not selection:
-            messagebox.showwarning("Advertencia", "Seleccione un servicio")
-            return
+            if not selection:
+                messagebox.showwarning("Advertencia", "Seleccione un servicio")
+                return
         
-        # Confirmar eliminación
-        if messagebox.askyesno("Confirmar", "¿Está seguro de eliminar este servicio?"):
             servicio_id = int(selection[0])
+            servicio = self.catalogo_servicios.buscar_servicio(servicio_id)
+            
+            if not servicio:
+                messagebox.showerror("Error", "El servicio seleccionado no existe")
+                return
+            
+            # VALIDAR RESERVAS ASOCIADAS
+
+            # Verificar si hay reservas activas con este servicio
+            reservas_asociadas = []
+            for reserva in self.gestor_reservas.listar_reservas():
+                if reserva.servicio.id == servicio_id and reserva.estado in ["PENDIENTE", "CONFIRMADA"]:
+                    reservas_asociadas.append(reserva)
+            
+            if reservas_asociadas:
+                messagebox.showerror("Error", 
+                                    f"No se puede eliminar el servicio '{servicio.name}' porque tiene {len(reservas_asociadas)} reservas pendientes o confirmadas.\n"
+                                    "Primero debe cancelar o completar las reservas asociadas.")
+                return
+        
+            # Confirmar eliminación
+            if not messagebox.askyesno("Confirmar Eliminación", 
+                                      f"¿Está seguro de eliminar el servicio '{servicio.name}'?\n\n"
+                                      f"Tipo: {servicio.category}\n"
+                                      f"Precio: ${servicio.price:,.0f}"):
+                return
+            
+            # ELIMINAR SERVICIO
+
             self.catalogo_servicios.eliminar_servicio(servicio_id)
             self.actualizar_tabla_servicios()
-            messagebox.showinfo("Éxito", "Servicio eliminado correctamente")
+            
+
+            # REGISTRAR EN LOG
+            logging.info(f"Servicio eliminado: {servicio.name} (ID: {servicio_id})")
+            
+            messagebox.showinfo("Éxito", f"Servicio '{servicio.name}' eliminado correctamente")
+            
+        except Exception as e:
+            logging.error(f"Error eliminando servicio:\n{traceback.format_exc()}")
+            messagebox.showerror("Error", f"Ocurrió un error inesperado: {str(e)}")
     
     def toggle_service_availability(self):
-        """Cambia la disponibilidad de un servicio"""
-        selection = self.table_service.selection()
-        
-        if not selection:
-            messagebox.showwarning("Advertencia", "Seleccione un servicio")
-            return
-        
-        servicio_id = int(selection[0])
-        servicio = self.catalogo_servicios.buscar_servicio(servicio_id)
-        
-        if servicio:
-            servicio.disponible = not servicio.disponible
+        """Cambia la disponibilidad de un servicio con validaciones"""
+        try:
+            selection = self.table_service.selection()
+            
+            # VALIDAR SELECCIÓN
+
+            if not selection:
+                messagebox.showwarning("Advertencia", "Debe seleccionar un servicio")
+                return
+            
+            servicio_id = int(selection[0])
+            servicio = self.catalogo_servicios.buscar_servicio(servicio_id)
+            
+            if not servicio:
+                messagebox.showerror("Error", "El servicio seleccionado no existe")
+                return
+            
+            # VALIDAR ANTES DE CAMBIAR DISPONIBILIDAD
+            nuevo_estado = not servicio.disponible
+            
+            # Si se va a marcar como NO disponible, verificar reservas pendientes
+            if not nuevo_estado:
+                reservas_activas = []
+                for reserva in self.gestor_reservas.listar_reservas():
+                    if reserva.servicio.id == servicio_id and reserva.estado in ["PENDIENTE", "CONFIRMADA"]:
+                        reservas_activas.append(reserva)
+                
+                if reservas_activas:
+                    messagebox.showerror("Error", 
+                                       f"No se puede marcar el servicio '{servicio.name}' como NO disponible porque tiene {len(reservas_activas)} reservas pendientes o confirmadas.\n"
+                                       "Primero debe cancelar o completar las reservas asociadas.")
+                    return
+            
+            # CONFIRMAR CAMBIO
+            estado_texto = "disponible" if nuevo_estado else "no disponible"
+            
+            if not messagebox.askyesno("Confirmar Cambio", 
+                                      f"¿Está seguro de cambiar la disponibilidad del servicio '{servicio.name}' a '{estado_texto}'?"):
+                return
+            
+            # CAMBIAR DISPONIBILIDAD
+            servicio.disponible = nuevo_estado
             self.actualizar_tabla_servicios()
-            estado = "disponible" if servicio.disponible else "no disponible"
-            messagebox.showinfo("Éxito", f"Servicio ahora está {estado}")
+            
+            # REGISTRAR EN LOG
+            logging.info(f"Disponibilidad cambiada: {servicio.name} - {estado_texto}")
+            
+            messagebox.showinfo("Éxito", f"Servicio '{servicio.name}' ahora está {estado_texto}")
+            
+            # ACTUALIZAR COMBO DE SERVICIOS EN RESERVAS
+            if hasattr(self, 'refrescar_servicios_reserva'):
+                self.refrescar_servicios_reserva()
+                
+        except Exception as e:
+            logging.error(f"Error cambiando disponibilidad:\n{traceback.format_exc()}")
+            messagebox.showerror("Error", f"Ocurrió un error inesperado: {str(e)}")
 
 # ============================================================
     # NUEVOS MÉTODOS PARA RESERVAS
