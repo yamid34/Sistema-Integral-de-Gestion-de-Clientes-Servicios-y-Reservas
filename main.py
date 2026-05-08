@@ -4,6 +4,8 @@ from tkinter import ttk, messagebox, scrolledtext
 from abc import ABC, abstractmethod
 import datetime
 import traceback
+import os
+import time
 import logging
 import re
 from enum import Enum
@@ -25,10 +27,42 @@ from enum import Enum
 # CONFIGURACIÓN DE LOGS
 # ============================================================
 
+# =========================================
+# CONFIGURACIÓN LOGS
+# =========================================
+
+LOG_FILE = "logs_error.log"
+
+# =========================================
+# ELIMINAR CONTENIDO SI PASARON 15 DÍAS
+# =========================================
+
+DIAS_LIMITE = 15
+
+if os.path.exists(LOG_FILE):
+
+    tiempo_creacion = os.path.getctime(LOG_FILE)
+
+    tiempo_actual = time.time()
+
+    dias_transcurridos = (
+        tiempo_actual - tiempo_creacion
+    ) / (60 * 60 * 24)
+
+    # Si pasaron más de 15 días
+    if dias_transcurridos >= DIAS_LIMITE:
+
+        # Vaciar archivo
+        open(LOG_FILE, "w", encoding="utf-8").close()
+
+# =========================================
+# LOGGER
+# =========================================
+
 logging.basicConfig(
-    filename="logs_error.log",
-    level=logging.ERROR,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
 # CLASE ABSTRACTA BASE
@@ -850,6 +884,11 @@ class main_window:
         self.frame_reservations = ttk.Frame(self.notebook)
         self.notebook.add(self.frame_reservations, text="📅 Reservas")
         self.create_frame_reservations()
+        
+        # PESTAÑA LOGS
+        self.frame_logs = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_logs, text="📄 Logs")
+        self.create_frame_logs()
         
     def create_frame_client(self):
         from_frame = ttk.LabelFrame(self.frame_clients, text="Registrar Nuevo Cliente", padding=10)
@@ -1732,7 +1771,58 @@ class main_window:
         self.refrescar_servicios_reserva()
         self.actualizar_tabla_reservas()
         self.actualizar_resumen_reservas()
+        
+    def create_frame_logs(self):
+        """Pestaña para visualizar logs del sistema"""
 
+        # Frame principal
+        log_frame = ttk.LabelFrame(self.frame_logs, text="Registro de Errores del Sistema", padding=10)
+
+        log_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Caja de texto
+        self.text_logs = tk.Text(log_frame, wrap="word", font=("Consolas", 10), bg="#f8fafc", fg="#1f2937", insertbackground="#1f2937",relief="flat")
+
+        self.text_logs.pack(side="left", fill="both", expand=True)
+
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=self.text_logs.yview)
+
+        scrollbar.pack(side="right", fill="y")
+
+        self.text_logs.configure(yscrollcommand=scrollbar.set)
+
+        # Frame botones
+        button_frame = ttk.Frame(self.frame_logs)
+        button_frame.pack(fill="x", padx=10, pady=5)
+
+        ttk.Button(button_frame, text="🔄 Actualizar Logs", command=self.load_logs).pack(side="left", padx=5)
+
+        # Cargar logs al iniciar
+        self.load_logs()
+        
+    def load_logs(self):
+        """Carga el contenido del archivo de logs"""
+
+        try:
+
+            self.text_logs.delete("1.0", tk.END)
+
+            with open("logs_error.log", "r", encoding="latin-1") as file:
+
+                contenido = file.read()
+
+                if contenido.strip() == "":
+                    contenido = "No hay logs registrados"
+
+                self.text_logs.insert(tk.END, contenido)
+
+        except FileNotFoundError:
+            self.text_logs.insert(tk.END,"El archivo de logs no existe todavía"
+        )
+
+        except Exception as e:
+            messagebox.showerror("Error",f"No se pudieron cargar los logs:\n{str(e)}")
 
         
 view = tk.Tk()
