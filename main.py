@@ -86,7 +86,15 @@ class Cliente(Entidad):
     def show_info(self):
         return f"Cliente: {self._name} - {self._email} - {self._phone}"
 
-
+    def __eq__(self, other):
+        """Compara clientes por email, teléfono o nombre"""
+        if isinstance(other, Cliente):
+            return (self._email.lower() == other._email.lower() or 
+                    self._phone == other._phone or
+                    self._name.lower() == other._name.lower())
+        return False
+    
+    
 # CLASE SERVICIO
 class Servicio(ABC):
     def __init__(self, id_servicio, name, price, description=""):
@@ -148,6 +156,12 @@ class Servicio(ABC):
     def show_info(self):
         estado = "✓ Disponible" if self._disponible else "✗ No Disponible"
         return f"{self._name} - ${self._price:,.0f} - {estado}"
+    
+    def __eq__(self, other):
+        """Compara servicios por nombre"""
+        if isinstance(other, Servicio):
+            return self._name.lower() == other._name.lower()
+        return False
   
 
 # CLASE SERVICIO ESTÁNDAR
@@ -172,13 +186,10 @@ class ServicioPremium(Servicio):
     def __init__(self, id_servicio, name, price, description="", beneficio_extra=""):
         super().__init__(id_servicio, name, price, description)
         self._category = "Premium"
-        self._beneficio_extra = beneficio_extra
         self._factor_calidad = 1.3  # 30% más caro por hora
 
     def get_details(self):
         detalles = f"Servicio Premium - {self._description}"
-        if self._beneficio_extra:
-            detalles += f" | Beneficio: {self._beneficio_extra}"
         return detalles
 
     def calculate_daily_cost(self, hours):
@@ -186,14 +197,6 @@ class ServicioPremium(Servicio):
         if hours < 1:
             hours = 1
         return self._price * hours * self._factor_calidad
-
-    @property
-    def beneficio_extra(self):
-        return self._beneficio_extra
-
-    @beneficio_extra.setter
-    def beneficio_extra(self, value):
-        self._beneficio_extra = value
 
 
 # CLASE SERVICIO EXPRESS
@@ -256,6 +259,14 @@ class CatalogoServicios:
     def obtener_servicios_por_categoria(self, categoria):
         """Filtra servicios por categoría"""
         return [s for s in self._servicios if s.category == categoria]
+    
+    def servicio_duplicado(self, nombre, id_excluir=None):
+        """Verifica si existe un servicio con el mismo nombre"""
+        for servicio in self._servicios:
+            if servicio.name.lower() == nombre.lower():
+                if id_excluir is None or servicio.id != id_excluir:
+                    return True
+        return False
 
 # CLASE RESERVA
 # ============================================================
@@ -290,6 +301,30 @@ class ClienteDuplicadoError(ExcepcionCliente):
 
 class ClienteNoEncontradoError(ExcepcionCliente):
     """Cliente no encontrado"""
+    pass
+
+
+# ============================================================
+# EXCEPCIONES PERSONALIZADAS PARA SERVICIOS
+# ============================================================
+
+class ExcepcionServicio(Exception):
+    """Excepción base de servicios"""
+    pass
+
+
+class ServicioInvalidoError(ExcepcionServicio):
+    """Datos inválidos del servicio"""
+    pass
+
+
+class ServicioDuplicadoError(ExcepcionServicio):
+    """Servicio duplicado"""
+    pass
+
+
+class ServicioNoEncontradoError(ExcepcionServicio):
+    """Servicio no encontrado"""
     pass
 
 
@@ -485,6 +520,10 @@ class GestorReservas:
         reserva.id = self._ultimo_id
         
         self._reservas.append(reserva)
+        
+        # Log de creación
+        logging.info(f"Reserva creada: #{reserva.id} - Cliente: {cliente._name} - Servicio: {servicio.name} - Duración: {duracion_horas}h")
+        
         return reserva
     
     def confirmar_reserva(self, reserva_id):
@@ -505,6 +544,10 @@ class GestorReservas:
             raise ExcepcionReserva(f"No se encontró la reserva con ID {reserva_id}")
         
         reserva.confirmar()
+        
+        # Log de confirmación
+        logging.info(f"Reserva confirmada: #{reserva_id} - Cliente: {reserva.cliente._name} - Costo: ${reserva.costo_total:,.0f}")
+        
         return True
     
     def cancelar_reserva(self, reserva_id):
@@ -525,6 +568,10 @@ class GestorReservas:
             raise ExcepcionReserva(f"No se encontró la reserva con ID {reserva_id}")
         
         reserva.cancelar()
+        
+        # Log de cancelación
+        logging.info(f"Reserva cancelada: #{reserva_id} - Cliente: {reserva.cliente._name} - Servicio: {reserva.servicio.name}")
+        
         return True
     
     def completar_reserva(self, reserva_id):
@@ -545,6 +592,10 @@ class GestorReservas:
             raise ExcepcionReserva(f"No se encontró la reserva con ID {reserva_id}")
         
         reserva.completar()
+        
+        # Log de completado
+        logging.info(f"Reserva completada: #{reserva_id} - Cliente: {reserva.cliente._name} - Servicio: {reserva.servicio.name}")
+        
         return True
     
     def buscar_reserva(self, reserva_id):
@@ -986,10 +1037,22 @@ class main_window:
             # VALIDAR DUPLICADOS
             # ====================================
 
+            # Validar duplicados por nombre, email O teléfono
             for client in self.clients:
-
+                # Validar nombre duplicado (insensible a mayúsculas/minúsculas)
+                if client._name.lower() == name.lower():
+                    logging.warning(f"Intento de registro duplicado - Nombre: {name}")
+                    raise ClienteDuplicadoError(f"Ya existe un cliente con el nombre '{name}'")
+                
+                # Validar correo duplicado
                 if client._email.lower() == email.lower():
-                    raise ClienteDuplicadoError("Ya existe un cliente con ese correo")
+                    logging.warning(f"Intento de registro duplicado - Correo: {email}")
+                    raise ClienteDuplicadoError(f"Ya existe un cliente con el correo '{email}'")
+                
+                # Validar teléfono duplicado
+                if client._phone == phone:
+                    logging.warning(f"Intento de registro duplicado - Teléfono: {phone}")
+                    raise ClienteDuplicadoError(f"Ya existe un cliente con el teléfono '{phone}'")
 
             # ====================================
             # GENERAR ID
@@ -1126,6 +1189,9 @@ class main_window:
         # ====================================
 
         else:
+            # Guardar nombre para log
+            nombre_cliente = cliente._name
+            
             # Eliminar de tabla
             self.table_client.delete(item_id)
 
@@ -1165,22 +1231,6 @@ class main_window:
         ttk.Label(form_frame, text="Descripción:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.service_description = ttk.Entry(form_frame, width=25)
         self.service_description.grid(row=3, column=1, padx=5, pady=5)
-        
-        # Beneficio extra (solo para premium)
-        ttk.Label(form_frame, text="Beneficio Extra (Premium):").grid(row=4, column=0, padx=5, pady=5, sticky="w")
-        self.service_benefit = ttk.Entry(form_frame, width=25)
-        self.service_benefit.grid(row=4, column=1, padx=5, pady=5)
-        self.service_benefit.configure(state="disabled")
-        
-        # Habilitar/deshabilitar campo beneficio según tipo
-        def on_type_change(*args):
-            if self.service_type.get() == "Premium":
-                self.service_benefit.configure(state="normal")
-            else:
-                self.service_benefit.configure(state="disabled")
-                self.service_benefit.delete(0, tk.END)
-        
-        self.service_type.bind("<<ComboboxSelected>>", on_type_change)
         
         # Botones
         button_frame = ttk.Frame(form_frame)
@@ -1222,99 +1272,125 @@ class main_window:
     def register_service(self):
         """Registra un nuevo servicio en el sistema"""
         try:
+            # ====================================
+            # OBTENER DATOS
+            # ====================================
             tipo = self.service_type.get()
             nombre = self.service_name.get()
             precio_str = self.service_price.get()
             descripcion = self.service_description.get().strip()
-            beneficio = self.service_benefit.get() if tipo == "Premium" else ""
         
             # ====================================
-            # VALIDACIONES DEL NOMBRE
+            # VALIDACIONES DEL NOMBRE (solo letras y espacios)
             # ====================================
             if not nombre:
-                messagebox.showwarning("Advertencia", "El nombre del servicio es obligatorio")
-                return
+                raise ServicioInvalidoError("El nombre del servicio es obligatorio")
             
             if len(nombre) < 3:
-                messagebox.showwarning("Advertencia", "El nombre del servicio debe tener al menos 3 caracteres")
-                return
+                raise ServicioInvalidoError("El nombre del servicio debe tener al menos 3 caracteres")
             
             if len(nombre) > 100:
-                messagebox.showwarning("Advertencia", "El nombre del servicio no puede exceder los 100 caracteres")
-                return
+                raise ServicioInvalidoError("El nombre del servicio no puede exceder los 100 caracteres")
             
-            # Validar que el nombre no contenga caracteres especiales no deseados
-            if not re.match(r'^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s\-\.]+$', nombre):
-                messagebox.showwarning("Advertencia", "El nombre solo puede contener letras, números, espacios, guiones y puntos")
-                return
+            # Solo letras y espacios (sin números)
+            if not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+", nombre):
+                raise ServicioInvalidoError("El nombre solo puede contener letras y espacios (sin números)")
             
-            # Verificar si ya existe un servicio con el mismo nombre
+            # ====================================
+            # VALIDAR DESCRIPCIÓN (obligatoria)
+            # ====================================
+            if not descripcion:
+                raise ServicioInvalidoError("La descripción del servicio es obligatoria")
+
+            if len(descripcion) < 5:
+                raise ServicioInvalidoError("La descripción debe tener al menos 5 caracteres")
+
+            if len(descripcion) > 500:
+                raise ServicioInvalidoError("La descripción no puede exceder los 500 caracteres")
+
+            # ====================================
+            # VALIDAR DUPLICADOS
+            # ====================================
             for servicio in self.catalogo_servicios.listar_servicios():
                 if servicio.name.lower() == nombre.lower():
-                    messagebox.showwarning("Advertencia", f"Ya existe un servicio con el nombre '{nombre}'")
-                    return
-            
+                    logging.warning(f"Intento de registro duplicado - Servicio: {nombre}")
+                    raise ServicioDuplicadoError(f"Ya existe un servicio con el nombre '{nombre}'")
+
             # ====================================
             # VALIDACIONES DEL PRECIO
             # ====================================
             if not precio_str:
-                messagebox.showwarning("Advertencia", "El precio del servicio es obligatorio")
-                return
+                raise ServicioInvalidoError("El precio del servicio es obligatorio")
             
             try:
                 precio = float(precio_str)
-                
-                # Validar que sea un número positivo
+            except ValueError:
+                raise ServicioInvalidoError("Ingrese un precio válido")
+
                 if precio <= 0:
                     messagebox.showwarning("Advertencia", "El precio debe ser mayor a 0")
-                    return
                 
-                # Validar que no sea demasiado grande (máximo 1 millón por hora)
                 if precio > 1000000:
                     messagebox.showwarning("Advertencia", "El precio no puede superar $1,000,000 por hora")
-                    return
                 
-                # Validar que tenga máximo 2 decimales
-                if len(precio_str.split('.')[-1]) > 2 if '.' in precio_str else False:
-                    messagebox.showwarning("Advertencia", "El precio solo puede tener máximo 2 decimales")
-                    return
-                    
-            except ValueError:
-                messagebox.showwarning("Advertencia", "Por favor ingrese un precio válido (solo números)")
-                return
-            
-            # ====================================
-            # VALIDACIONES DE DESCRIPCIÓN
-            # ====================================
-            if descripcion and len(descripcion) > 500:
-                messagebox.showwarning("Advertencia", "La descripción no puede exceder los 500 caracteres")
-                return
-            
-            # ====================================
-            # VALIDACIÓN PARA SERVICIO PREMIUM
-            # ====================================
-            if tipo == "Premium" and not beneficio:
-                messagebox.showwarning("Advertencia", "Los servicios Premium requieren un beneficio extra")
-                return
-            
-            if tipo == "Premium" and len(beneficio) > 200:
-                messagebox.showwarning("Advertencia", "El beneficio extra no puede exceder los 200 caracteres")
-                return
+            # Máximo 2 decimales
+            if "." in precio_str:
+                decimales = precio_str.split(".")[1]
+                if len(decimales) > 2:
+                    raise ServicioInvalidoError("El precio solo puede tener máximo 2 decimales")
+
         
             # Generar ID
             new_id = self.catalogo_servicios.obtener_nuevo_id()
             
-            # Crear servicio según tipo
-            if tipo == "Estándar":
-                servicio = ServicioEstandar(new_id, nombre, precio, descripcion)
-            elif tipo == "Premium":
-                servicio = ServicioPremium(new_id, nombre, precio, descripcion, beneficio)
-            elif tipo == "Express":
-                servicio = ServicioExpress(new_id, nombre, precio, descripcion)
-            else:
-                messagebox.showerror("Error", "Tipo de servicio no válido")
-                return
+
+            # CREAR SERVICIO
+            try:
+                if tipo == "Estándar":
+                    servicio = ServicioEstandar(
+                        new_id,
+                        nombre,
+                        precio,
+                        descripcion
+                    )
+                elif tipo == "Premium":
+                    servicio = ServicioPremium(
+                        new_id,
+                        nombre,
+                        precio,
+                        descripcion
+                    )
+                elif tipo == "Express":
+                    servicio = ServicioExpress(
+                        new_id,
+                        nombre,
+                        precio,
+                        descripcion
+                    )
+                else:
+                    raise ServicioInvalidoError("Tipo de servicio no válido")
+            except Exception as e:
+                raise ServicioInvalidoError("Error creando el servicio") from e
             
+
+        # EXCEPCIONES PERSONALIZADAS
+        except ServicioDuplicadoError as e:
+            logging.error(f"Error: {str(e)}")
+            messagebox.showerror("Servicio Duplicado", str(e))
+
+        except ServicioInvalidoError as e:
+            logging.error(f"Error: {str(e)}")
+            messagebox.showerror("Datos Inválidos", str(e))
+
+
+        # ERROR GENERAL
+        except Exception as e:
+            logging.error(f"Error inesperado: {str(e)}")
+            messagebox.showerror("Error", "Ocurrió un error inesperado")
+
+
+        # ELSE (ÉXITO)
+        else:   
             # Agregar al catálogo
             self.catalogo_servicios.agregar_servicio(servicio)
             
@@ -1325,17 +1401,12 @@ class main_window:
             self.service_name.delete(0, tk.END)
             self.service_price.delete(0, tk.END)
             self.service_description.delete(0, tk.END)
-            self.service_benefit.delete(0, tk.END)
             self.service_type.set("Estándar")
             
             logging.info(f"Servicio registrado: {nombre} - Tipo: {tipo} - Precio: ${precio:,.0f}")
             
             messagebox.showinfo("Éxito", f"Servicio '{nombre}' registrado correctamente")
-    
-        except Exception as e:
-            logging.error(f"Error registrando servicio:\n{traceback.format_exc()}")
-            messagebox.showerror("Error", f"Ocurrió un error inesperado: {str(e)}")
-            
+     
     def actualizar_tabla_servicios(self):
         """Actualiza la tabla de servicios con los datos actuales"""
         # Limpiar tabla
@@ -1394,7 +1465,7 @@ class main_window:
                 return
             
             # ELIMINAR SERVICIO
-
+            nombre_servicio = servicio.name
             self.catalogo_servicios.eliminar_servicio(servicio_id)
             self.actualizar_tabla_servicios()
             
@@ -1466,7 +1537,7 @@ class main_window:
             logging.error(f"Error cambiando disponibilidad:\n{traceback.format_exc()}")
             messagebox.showerror("Error", f"Ocurrió un error inesperado: {str(e)}")
 
-# ============================================================
+    # ============================================================
     # NUEVOS MÉTODOS PARA RESERVAS
     # ============================================================
     
@@ -1585,44 +1656,37 @@ class main_window:
             # Obtener cliente seleccionado
             cliente_seleccionado = self.reserva_cliente_combo.get()
             if not cliente_seleccionado:
-                messagebox.showwarning("Advertencia", "Debe seleccionar un cliente")
-                return
+                raise ExcepcionReserva("Advertencia", "Debe seleccionar un cliente")
             
             cliente_id = int(cliente_seleccionado.split(" - ")[0])
             cliente = next((c for c in self.clients if c._id == cliente_id), None)
             
             if not cliente:
-                messagebox.showerror("Error", "Cliente no encontrado")
-                return
+                raise ExcepcionReserva("Cliente no encontrado")
             
             # Obtener servicio seleccionado
             servicio_seleccionado = self.reserva_servicio_combo.get()
             if not servicio_seleccionado:
-                messagebox.showwarning("Advertencia", "Debe seleccionar un servicio")
-                return
+                raise ExcepcionReserva("Advertencia", "Debe seleccionar un servicio")
             
             servicio_id = int(servicio_seleccionado.split(" - ")[0])
             servicio = self.catalogo_servicios.buscar_servicio(servicio_id)
             
             if not servicio:
-                messagebox.showerror("Error", "Servicio no encontrado")
-                return
+                raise ExcepcionReserva("Error", "Servicio no encontrado")
             
             if not servicio.disponible:
-                messagebox.showerror("Error", "El servicio seleccionado no está disponible")
-                return
+                raise ExcepcionReserva("Error", "El servicio seleccionado no está disponible")
             
             # Obtener duración
             duracion_str = self.reserva_duracion.get()
             if not duracion_str:
-                messagebox.showwarning("Advertencia", "Debe ingresar la duración")
-                return
+                raise ExcepcionReserva("Advertencia", "Debe ingresar la duración")
             
             try:
                 duracion = float(duracion_str)
             except ValueError:
-                messagebox.showerror("Error", "Duración inválida")
-                return
+                raise ExcepcionReserva("Error", "Duración inválida")
             
             # Obtener fecha
             fecha_str = self.reserva_fecha.get()
@@ -1644,10 +1708,11 @@ class main_window:
             messagebox.showinfo("Éxito", f"Reserva #{reserva.id} creada correctamente.\nEstado: {reserva.estado}")
             
         except ExcepcionReserva as e:
+            logging.error(f"Error: {str(e)}")
             messagebox.showerror("Error de Reserva", str(e))
         except Exception as e:
+            logging.error(f"Error inesperado: {str(e)}")
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
-            traceback.print_exc()
     
     def confirmar_reserva(self):
         """Confirma la reserva seleccionada"""
@@ -1676,8 +1741,10 @@ class main_window:
                 messagebox.showinfo("Éxito", f"Reserva #{reserva_id} confirmada correctamente")
                 
         except ExcepcionReserva as e:
+            logging.error(f"Error: {str(e)}")
             messagebox.showerror("Error", str(e))
         except Exception as e:
+            logging.error(f"Error inesperado: {str(e)}")
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
     
     def cancelar_reserva(self):
@@ -1699,8 +1766,10 @@ class main_window:
             self.actualizar_resumen_reservas()
             messagebox.showinfo("Éxito", f"Reserva #{reserva_id} cancelada correctamente")
         except ExcepcionReserva as e:
+            logging.error(f"Error: {str(e)}")
             messagebox.showerror("Error", str(e))
         except Exception as e:
+            logging.error(f"Error inesperado: {str(e)}")
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
     
     def completar_reserva(self):
@@ -1719,8 +1788,10 @@ class main_window:
             self.actualizar_resumen_reservas()
             messagebox.showinfo("Éxito", f"Reserva #{reserva_id} completada correctamente")
         except ExcepcionReserva as e:
+            logging.error(f"Error: {str(e)}")
             messagebox.showerror("Error", str(e))
         except Exception as e:
+            logging.error(f"Error inesperado: {str(e)}")
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
     
     def actualizar_tabla_reservas(self):
@@ -1803,30 +1874,35 @@ class main_window:
         
     def load_logs(self):
         """Carga el contenido del archivo de logs"""
-
         try:
-
             self.text_logs.delete("1.0", tk.END)
 
             with open("logs_error.log", "r", encoding="latin-1") as file:
-
-                contenido = file.read()
-
-                if contenido.strip() == "":
-                    contenido = "No hay logs registrados"
-
-                self.text_logs.insert(tk.END, contenido)
-
+                lineas = file.readlines()
+                
+                if not lineas:
+                    self.text_logs.insert(tk.END, "No hay logs registrados")
+                else:
+                    for linea in lineas:
+                        # Mostrar todas las líneas (INFO, ERROR, WARNING)
+                        if "ERROR" in linea or "INFO" in linea or "WARNING" in linea:
+                            partes = linea.split(" - ", 2)
+                            if len(partes) >= 3:
+                                mensaje_limpio = f"{partes[0]} - {partes[2]}"
+                                self.text_logs.insert(tk.END, mensaje_limpio)
+                            else:
+                                self.text_logs.insert(tk.END, linea.strip() + "\n")
+                        else:
+                            self.text_logs.insert(tk.END, linea)
+                            
         except FileNotFoundError:
-            self.text_logs.insert(tk.END,"El archivo de logs no existe todavía"
-        )
-
+            self.text_logs.insert(tk.END, "El archivo de logs no existe todavía")
         except Exception as e:
-            messagebox.showerror("Error",f"No se pudieron cargar los logs:\n{str(e)}")
+            messagebox.showerror("Error", f"No se pudieron cargar los logs:\n{str(e)}")
 
         
-view = tk.Tk()
-
-app = main_window(view)
-
-view.mainloop()
+# Ejecutar la aplicación
+if __name__ == "__main__":
+    view = tk.Tk()
+    app = main_window(view)
+    view.mainloop()
