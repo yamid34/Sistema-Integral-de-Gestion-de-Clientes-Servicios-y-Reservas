@@ -9,6 +9,7 @@ import time
 import logging
 import re
 from enum import Enum
+import json
 
 # ------------------------------------------------------------
 # Solución del Sistema de gestión de Clientes Servivios y Reservas
@@ -745,10 +746,17 @@ class main_window:
         self.catalogo_servicios = CatalogoServicios()
         self.reservas = []
         self.gestor_reservas = GestorReservas()
+        
+        
+        self.simulador_datos_correctos = 0
+        self.simulador_datos_incorrectos = 0
 
         self.view = view
         self.view.title("Software FJ - Sistema Integral de Gestión")
-        self.view.geometry("1200x700")
+        
+        
+        self.view.state('zoomed')
+        
         self.view.configure(bg=self.COLOR_BLANCO)
 
         header = tk.Frame(self.view, bg=self.COLOR_HEADER, height=120)
@@ -935,6 +943,11 @@ class main_window:
         self.frame_reservations = ttk.Frame(self.notebook)
         self.notebook.add(self.frame_reservations, text="📅 Reservas")
         self.create_frame_reservations()
+        
+        # NUEVA PESTAÑA DE SIMULADOR
+        self.frame_simulator = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_simulator, text="🎮 Simulador")
+        self.create_frame_simulator()
         
         # PESTAÑA LOGS
         self.frame_logs = ttk.Frame(self.notebook)
@@ -1843,6 +1856,530 @@ class main_window:
         self.actualizar_tabla_reservas()
         self.actualizar_resumen_reservas()
         
+    # ============================================================
+    # NUEVA PESTAÑA SIMULADOR (VERSIÓN OPTIMIZADA - SIN ESPACIOS EN BLANCO)
+    # ============================================================
+    
+    def create_frame_simulator(self):
+        """Crea la pestaña del simulador - Versión optimizada sin espacios en blanco"""
+        
+        # Frame principal que ocupa todo el espacio
+        main_container = ttk.Frame(self.frame_simulator)
+        main_container.pack(fill="both", expand=True)
+        
+        # Configurar grid para que ocupe todo el espacio
+        main_container.grid_rowconfigure(0, weight=1)
+        main_container.grid_columnconfigure(0, weight=1)
+        main_container.grid_columnconfigure(1, weight=1)
+        main_container.grid_columnconfigure(2, weight=1)
+        
+        # Columna 1: Formulario de entrada
+        col1 = ttk.Frame(main_container)
+        col1.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        col1.grid_rowconfigure(1, weight=1)
+        col1.grid_columnconfigure(0, weight=1)
+        
+        # Selector de tipo
+        selector_frame = ttk.LabelFrame(col1, text="🎯 Tipo de Datos a Ingresar", padding=10)
+        selector_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        selector_frame.grid_columnconfigure(0, weight=1)
+        
+        self.simulador_tipo = ttk.Combobox(selector_frame, values=["Cliente", "Servicio"], 
+                                           state="readonly", font=("Arial", 11))
+        self.simulador_tipo.pack(fill="x", pady=5)
+        self.simulador_tipo.set("Cliente")
+        self.simulador_tipo.bind("<<ComboboxSelected>>", self.cambiar_formulario_simulador)
+        
+        # Formulario dinámico
+        self.formulario_simulador_frame = ttk.LabelFrame(col1, text="📝 Ingrese los Datos", padding=10)
+        self.formulario_simulador_frame.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
+        self.formulario_simulador_frame.grid_columnconfigure(0, weight=1)
+        
+        # Contenedor interno para el formulario
+        self.formulario_inner = ttk.Frame(self.formulario_simulador_frame)
+        self.formulario_inner.pack(fill="both", expand=True)
+        
+        self.widgets_simulador = {}
+        
+        # Botones de acción del formulario
+        form_buttons = ttk.Frame(col1)
+        form_buttons.grid(row=2, column=0, sticky="ew")
+        form_buttons.grid_columnconfigure(0, weight=1)
+        form_buttons.grid_columnconfigure(1, weight=1)
+        
+        ttk.Button(form_buttons, text="➕ Agregar a la Lista", command=self.agregar_dato_lista,
+                  style="Green.TButton").grid(row=0, column=0, padx=5, sticky="ew")
+        ttk.Button(form_buttons, text="🗑️ Limpiar Formulario", command=self.limpiar_formulario_simulador,
+                  style="Red.TButton").grid(row=0, column=1, padx=5, sticky="ew")
+        
+        # Columna 2: Lista de datos acumulados
+        col2 = ttk.Frame(main_container)
+        col2.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
+        col2.grid_rowconfigure(0, weight=1)
+        col2.grid_columnconfigure(0, weight=1)
+        
+        list_frame = ttk.LabelFrame(col2, text="📋 Datos Acumulados para Insertar", padding=10)
+        list_frame.grid(row=0, column=0, sticky="nsew")
+        list_frame.grid_rowconfigure(0, weight=1)
+        list_frame.grid_columnconfigure(0, weight=1)
+        
+        # Treeview para mostrar la lista de datos
+        tree_container = ttk.Frame(list_frame)
+        tree_container.grid(row=0, column=0, sticky="nsew")
+        tree_container.grid_rowconfigure(0, weight=1)
+        tree_container.grid_columnconfigure(0, weight=1)
+        
+        columns = ("#", "Tipo", "Datos")
+        self.lista_datos_tree = ttk.Treeview(tree_container, columns=columns, show="headings")
+        
+        self.lista_datos_tree.heading("#", text="#")
+        self.lista_datos_tree.heading("Tipo", text="Tipo")
+        self.lista_datos_tree.heading("Datos", text="Datos")
+        
+        self.lista_datos_tree.column("#", width=50)
+        self.lista_datos_tree.column("Tipo", width=100)
+        self.lista_datos_tree.column("Datos", width=350)
+        
+        scrollbar_lista = ttk.Scrollbar(tree_container, orient="vertical", command=self.lista_datos_tree.yview)
+        self.lista_datos_tree.configure(yscrollcommand=scrollbar_lista.set)
+        
+        self.lista_datos_tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar_lista.grid(row=0, column=1, sticky="ns")
+        
+        # Botones para gestionar la lista
+        list_buttons = ttk.Frame(list_frame)
+        list_buttons.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        list_buttons.grid_columnconfigure(0, weight=1)
+        list_buttons.grid_columnconfigure(1, weight=1)
+        
+        ttk.Button(list_buttons, text="🗑️ Eliminar Seleccionado", command=self.eliminar_dato_lista,
+                  style="Red.TButton").grid(row=0, column=0, padx=5, sticky="ew")
+        ttk.Button(list_buttons, text="🧹 Limpiar Lista", command=self.limpiar_lista_datos,
+                  style="Red.TButton").grid(row=0, column=1, padx=5, sticky="ew")
+        
+        # Columna 3: Estadísticas y botón de inserción masiva
+        col3 = ttk.Frame(main_container)
+        col3.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
+        col3.grid_rowconfigure(1, weight=1)
+        col3.grid_columnconfigure(0, weight=1)
+        
+        # Botón de inserción masiva
+        insert_frame = ttk.LabelFrame(col3, text="🚀 Acción Masiva", padding=10)
+        insert_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        insert_frame.grid_columnconfigure(0, weight=1)
+        
+        ttk.Button(insert_frame, text="📥 INSERTAR TODOS LOS DATOS", 
+                  command=self.insertar_datos_masivos,
+                  style="Green.TButton").grid(row=0, column=0, sticky="ew", pady=5)
+        
+        ttk.Label(insert_frame, text="Total en lista:", font=("Arial", 10)).grid(row=1, column=0, pady=5)
+        self.total_lista_label = ttk.Label(insert_frame, text="0", font=("Arial", 14, "bold"))
+        self.total_lista_label.grid(row=2, column=0)
+        
+        # Panel de estadísticas
+        stats_frame = ttk.LabelFrame(col3, text="📊 Estadísticas del Simulador", padding=15)
+        stats_frame.grid(row=1, column=0, sticky="nsew")
+        stats_frame.grid_columnconfigure(0, weight=1)
+        
+        # Variables para estadísticas
+        self.stats_correctos = tk.StringVar(value="0")
+        self.stats_incorrectos = tk.StringVar(value="0")
+        self.stats_totales = tk.StringVar(value="0")
+        
+        # Datos correctos
+        correct_frame = ttk.Frame(stats_frame)
+        correct_frame.grid(row=0, column=0, sticky="ew", pady=10)
+        correct_frame.grid_columnconfigure(1, weight=1)
+        
+        tk.Label(correct_frame, text="✅", font=("Arial", 24)).grid(row=0, column=0, padx=10)
+        ttk.Label(correct_frame, text="Datos Correctos:", font=("Arial", 12, "bold")).grid(row=0, column=1, padx=5, sticky="w")
+        ttk.Label(correct_frame, textvariable=self.stats_correctos, font=("Arial", 18, "bold"), 
+                 foreground=self.COLOR_VERDE).grid(row=0, column=2, padx=5)
+        
+        ttk.Separator(stats_frame, orient='horizontal').grid(row=1, column=0, sticky="ew", pady=10)
+        
+        # Datos incorrectos
+        incorrect_frame = ttk.Frame(stats_frame)
+        incorrect_frame.grid(row=2, column=0, sticky="ew", pady=10)
+        incorrect_frame.grid_columnconfigure(1, weight=1)
+        
+        tk.Label(incorrect_frame, text="❌", font=("Arial", 24)).grid(row=0, column=0, padx=10)
+        ttk.Label(incorrect_frame, text="Datos Incorrectos:", font=("Arial", 12, "bold")).grid(row=0, column=1, padx=5, sticky="w")
+        ttk.Label(incorrect_frame, textvariable=self.stats_incorrectos, font=("Arial", 18, "bold"), 
+                 foreground=self.COLOR_ROJO).grid(row=0, column=2, padx=5)
+        
+        ttk.Separator(stats_frame, orient='horizontal').grid(row=3, column=0, sticky="ew", pady=10)
+        
+        # Total
+        total_frame = ttk.Frame(stats_frame)
+        total_frame.grid(row=4, column=0, sticky="ew", pady=10)
+        total_frame.grid_columnconfigure(1, weight=1)
+        
+        tk.Label(total_frame, text="📊", font=("Arial", 24)).grid(row=0, column=0, padx=10)
+        ttk.Label(total_frame, text="Total Simulaciones:", font=("Arial", 12, "bold")).grid(row=0, column=1, padx=5, sticky="w")
+        ttk.Label(total_frame, textvariable=self.stats_totales, font=("Arial", 18, "bold"), 
+                 foreground=self.COLOR_AZUL_OSCURO).grid(row=0, column=2, padx=5)
+        
+        # Botón para resetear estadísticas
+        ttk.Button(stats_frame, text="🔄 Resetear Estadísticas", command=self.resetear_estadisticas,
+                  style="Red.TButton").grid(row=5, column=0, pady=15, sticky="ew")
+        
+        # Variable para almacenar los datos acumulados
+        self.datos_acumulados = []
+        
+        # Crear formulario inicial
+        self.cambiar_formulario_simulador()
+    
+    def resetear_estadisticas(self):
+        """Resetea las estadísticas del simulador"""
+        if messagebox.askyesno("Confirmar", "¿Está seguro de resetear las estadísticas?"):
+            self.simulador_datos_correctos = 0
+            self.simulador_datos_incorrectos = 0
+            self.actualizar_estadisticas()
+            logging.info("[SIMULADOR] Estadísticas reseteadas")
+            messagebox.showinfo("Éxito", "Estadísticas reseteadas correctamente")
+    
+    def actualizar_estadisticas(self):
+        """Actualiza la pantalla de estadísticas"""
+        self.stats_correctos.set(str(self.simulador_datos_correctos))
+        self.stats_incorrectos.set(str(self.simulador_datos_incorrectos))
+        self.stats_totales.set(str(self.simulador_datos_correctos + self.simulador_datos_incorrectos))
+    
+    def actualizar_total_lista(self):
+        """Actualiza el contador de la lista"""
+        self.total_lista_label.config(text=str(len(self.datos_acumulados)))
+    
+    def cambiar_formulario_simulador(self, event=None):
+        """Cambia el formulario según el tipo seleccionado"""
+        # Limpiar frame interno
+        for widget in self.formulario_inner.winfo_children():
+            widget.destroy()
+        
+        tipo = self.simulador_tipo.get()
+        self.widgets_simulador.clear()
+        
+        if tipo == "Cliente":
+            self.crear_formulario_cliente_simulador()
+        elif tipo == "Servicio":
+            self.crear_formulario_servicio_simulador()
+    
+    def crear_formulario_cliente_simulador(self):
+        """Crea el formulario para simular clientes"""
+        # Nombre
+        nombre_frame = ttk.Frame(self.formulario_inner)
+        nombre_frame.pack(fill="x", pady=5)
+        ttk.Label(nombre_frame, text="Nombre:*", width=15, anchor="w").pack(side="left", padx=5)
+        entry_nombre = ttk.Entry(nombre_frame)
+        entry_nombre.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["nombre"] = entry_nombre
+        
+        # Email
+        email_frame = ttk.Frame(self.formulario_inner)
+        email_frame.pack(fill="x", pady=5)
+        ttk.Label(email_frame, text="Correo:*", width=15, anchor="w").pack(side="left", padx=5)
+        entry_email = ttk.Entry(email_frame)
+        entry_email.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["email"] = entry_email
+        
+        # Teléfono
+        phone_frame = ttk.Frame(self.formulario_inner)
+        phone_frame.pack(fill="x", pady=5)
+        ttk.Label(phone_frame, text="Teléfono:* (10 dígitos)", width=15, anchor="w").pack(side="left", padx=5)
+        entry_phone = ttk.Entry(phone_frame)
+        entry_phone.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["phone"] = entry_phone
+        
+        # Campos requeridos
+        req_frame = ttk.Frame(self.formulario_inner)
+        req_frame.pack(fill="x", pady=10)
+        ttk.Label(req_frame, text="* Campos obligatorios", font=("Arial", 8, "italic"), foreground="red").pack()
+    
+    def crear_formulario_servicio_simulador(self):
+        """Crea el formulario para simular servicios"""
+        # Tipo de servicio
+        tipo_frame = ttk.Frame(self.formulario_inner)
+        tipo_frame.pack(fill="x", pady=5)
+        ttk.Label(tipo_frame, text="Tipo de Servicio:*", width=15, anchor="w").pack(side="left", padx=5)
+        combo_tipo = ttk.Combobox(tipo_frame, values=["Estándar", "Premium", "Express"], state="readonly")
+        combo_tipo.pack(side="left", padx=5, fill="x", expand=True)
+        combo_tipo.set("Estándar")
+        self.widgets_simulador["tipo"] = combo_tipo
+        
+        # Nombre
+        nombre_frame = ttk.Frame(self.formulario_inner)
+        nombre_frame.pack(fill="x", pady=5)
+        ttk.Label(nombre_frame, text="Nombre:* (solo letras)", width=15, anchor="w").pack(side="left", padx=5)
+        entry_nombre = ttk.Entry(nombre_frame)
+        entry_nombre.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["nombre"] = entry_nombre
+        
+        # Precio
+        precio_frame = ttk.Frame(self.formulario_inner)
+        precio_frame.pack(fill="x", pady=5)
+        ttk.Label(precio_frame, text="Precio por hora:* (>0)", width=15, anchor="w").pack(side="left", padx=5)
+        entry_precio = ttk.Entry(precio_frame)
+        entry_precio.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["precio"] = entry_precio
+        
+        # Descripción
+        desc_frame = ttk.Frame(self.formulario_inner)
+        desc_frame.pack(fill="x", pady=5)
+        ttk.Label(desc_frame, text="Descripción:* (mínimo 5)", width=15, anchor="w").pack(side="left", padx=5)
+        entry_desc = ttk.Entry(desc_frame)
+        entry_desc.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["descripcion"] = entry_desc
+        
+        # Campos requeridos
+        req_frame = ttk.Frame(self.formulario_inner)
+        req_frame.pack(fill="x", pady=10)
+        ttk.Label(req_frame, text="* Campos obligatorios", font=("Arial", 8, "italic"), foreground="red").pack()
+    
+    def agregar_dato_lista(self):
+        """Agrega el dato actual del formulario a la lista acumulada"""
+        tipo = self.simulador_tipo.get()
+        
+        if tipo == "Cliente":
+            nombre = self.widgets_simulador.get("nombre", ttk.Entry()).get().strip()
+            email = self.widgets_simulador.get("email", ttk.Entry()).get().strip()
+            phone = self.widgets_simulador.get("phone", ttk.Entry()).get().strip()
+            
+            if not nombre or not email or not phone:
+                messagebox.showwarning("Campos incompletos", "Por favor complete todos los campos del cliente")
+                return
+            
+            dato = {
+                "tipo": "Cliente",
+                "datos": {
+                    "nombre": nombre,
+                    "email": email,
+                    "phone": phone
+                }
+            }
+            resumen = f"Nombre: {nombre}, Email: {email}, Tel: {phone}"
+            
+        elif tipo == "Servicio":
+            tipo_servicio = self.widgets_simulador.get("tipo", ttk.Combobox()).get()
+            nombre = self.widgets_simulador.get("nombre", ttk.Entry()).get().strip()
+            precio = self.widgets_simulador.get("precio", ttk.Entry()).get().strip()
+            descripcion = self.widgets_simulador.get("descripcion", ttk.Entry()).get().strip()
+            
+            if not nombre or not precio or not descripcion:
+                messagebox.showwarning("Campos incompletos", "Por favor complete todos los campos del servicio")
+                return
+            
+            dato = {
+                "tipo": "Servicio",
+                "datos": {
+                    "tipo_servicio": tipo_servicio,
+                    "nombre": nombre,
+                    "precio": precio,
+                    "descripcion": descripcion
+                }
+            }
+            resumen = f"Tipo: {tipo_servicio}, Nombre: {nombre}, Precio: ${precio}, Desc: {descripcion[:30]}..."
+        else:
+            return
+        
+        self.datos_acumulados.append(dato)
+        item_id = len(self.datos_acumulados)
+        self.lista_datos_tree.insert("", "end", iid=str(item_id), values=(item_id, tipo, resumen))
+        self.actualizar_total_lista()
+        self.limpiar_formulario_simulador()
+        messagebox.showinfo("Dato Agregado", f"Dato de {tipo} agregado correctamente a la lista.\nTotal en lista: {len(self.datos_acumulados)}")
+    
+    def eliminar_dato_lista(self):
+        """Elimina el dato seleccionado de la lista"""
+        selection = self.lista_datos_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un dato para eliminar")
+            return
+        
+        item_id = int(selection[0])
+        index = item_id - 1
+        
+        if 0 <= index < len(self.datos_acumulados):
+            del self.datos_acumulados[index]
+            self.lista_datos_tree.delete(*self.lista_datos_tree.get_children())
+            
+            for i, dato in enumerate(self.datos_acumulados, 1):
+                if dato["tipo"] == "Cliente":
+                    resumen = f"Nombre: {dato['datos']['nombre']}, Email: {dato['datos']['email']}, Tel: {dato['datos']['phone']}"
+                else:
+                    resumen = f"Tipo: {dato['datos']['tipo_servicio']}, Nombre: {dato['datos']['nombre']}, Precio: ${dato['datos']['precio']}"
+                self.lista_datos_tree.insert("", "end", iid=str(i), values=(i, dato["tipo"], resumen))
+            
+            self.actualizar_total_lista()
+            messagebox.showinfo("Éxito", "Dato eliminado correctamente")
+    
+    def limpiar_lista_datos(self):
+        """Limpia toda la lista de datos acumulados"""
+        if messagebox.askyesno("Confirmar", "¿Está seguro de limpiar toda la lista de datos?"):
+            self.datos_acumulados.clear()
+            self.lista_datos_tree.delete(*self.lista_datos_tree.get_children())
+            self.actualizar_total_lista()
+            messagebox.showinfo("Éxito", "Lista limpiada correctamente")
+    
+    def insertar_datos_masivos(self):
+        """Inserta todos los datos acumulados en el sistema"""
+        if not self.datos_acumulados:
+            messagebox.showwarning("Advertencia", "No hay datos para insertar. Agregue datos a la lista primero.")
+            return
+        
+        if not messagebox.askyesno("Confirmar Inserción Masiva", 
+                                   f"¿Está seguro de insertar {len(self.datos_acumulados)} datos en el sistema?\n\n"
+                                   "Los datos válidos se insertarán automáticamente.\n"
+                                   "Los datos inválidos se registrarán en los logs."):
+            return
+        
+        correctos = 0
+        incorrectos = 0
+        
+        for dato in self.datos_acumulados:
+            if dato["tipo"] == "Cliente":
+                if self.insertar_cliente_simulado(dato["datos"]):
+                    correctos += 1
+                    self.simulador_datos_correctos += 1
+                else:
+                    incorrectos += 1
+                    self.simulador_datos_incorrectos += 1
+            elif dato["tipo"] == "Servicio":
+                if self.insertar_servicio_simulado(dato["datos"]):
+                    correctos += 1
+                    self.simulador_datos_correctos += 1
+                else:
+                    incorrectos += 1
+                    self.simulador_datos_incorrectos += 1
+        
+        self.actualizar_estadisticas()
+        self.datos_acumulados.clear()
+        self.lista_datos_tree.delete(*self.lista_datos_tree.get_children())
+        self.actualizar_total_lista()
+        self.refrescar_clientes_reserva()
+        self.refrescar_servicios_reserva()
+        self.load_logs()
+        
+        messagebox.showinfo("Inserción Masiva Completada", 
+                           f"Proceso finalizado:\n\n✅ Datos correctos insertados: {correctos}\n❌ Datos incorrectos: {incorrectos}\n\n"
+                           f"Total procesados: {correctos + incorrectos}\n\n"
+                           "Los datos incorrectos se han registrado en la pestaña de Logs.")
+    
+    def insertar_cliente_simulado(self, datos):
+        """Inserta un cliente simulado, retorna True si fue exitoso"""
+        nombre = datos["nombre"]
+        email = datos["email"]
+        phone = datos["phone"]
+        new_id = len(self.clients) + 1 if self.clients else 1
+        
+        try:
+            if not nombre:
+                raise ClienteInvalidoError("El nombre es obligatorio")
+            if not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+", nombre):
+                raise ClienteInvalidoError("El nombre solo puede contener letras y espacios")
+            if len(nombre) < 3:
+                raise ClienteInvalidoError("El nombre es demasiado corto")
+            
+            if not email:
+                raise ClienteInvalidoError("El correo es obligatorio")
+            if "@" not in email or "." not in email:
+                raise ClienteInvalidoError("Ingrese un correo válido")
+            patron_email = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+            if not re.fullmatch(patron_email, email):
+                raise ClienteInvalidoError("Formato de correo inválido")
+            
+            if not phone:
+                raise ClienteInvalidoError("El teléfono es obligatorio")
+            if not phone.isdigit():
+                raise ClienteInvalidoError("El teléfono solo debe contener números")
+            if len(phone) != 10:
+                raise ClienteInvalidoError("El teléfono debe tener exactamente 10 dígitos")
+            
+            for client in self.clients:
+                if client._name.lower() == nombre.lower():
+                    raise ClienteDuplicadoError(f"Ya existe un cliente con el nombre '{nombre}'")
+                if client._email.lower() == email.lower():
+                    raise ClienteDuplicadoError(f"Ya existe un cliente con el correo '{email}'")
+                if client._phone == phone:
+                    raise ClienteDuplicadoError(f"Ya existe un cliente con el teléfono '{phone}'")
+            
+            cliente = Cliente(new_id, nombre, email, phone)
+            self.clients.append(cliente)
+            self.table_client.insert("", "end", iid=str(cliente._id), values=(cliente._id, cliente._name, cliente._email, cliente._phone))
+            logging.info(f"[SIMULADOR] Cliente válido registrado: {nombre} (ID: {new_id})")
+            return True
+            
+        except (ClienteInvalidoError, ClienteDuplicadoError) as e:
+            logging.error(f"[SIMULADOR] Error al insertar cliente - Datos: Nombre='{nombre}', Email='{email}', Teléfono='{phone}' - Error: {str(e)}")
+            return False
+        except Exception as e:
+            logging.error(f"[SIMULADOR] Error inesperado al insertar cliente: {str(e)}")
+            return False
+    
+    def insertar_servicio_simulado(self, datos):
+        """Inserta un servicio simulado, retorna True si fue exitoso"""
+        tipo_servicio = datos["tipo_servicio"]
+        nombre = datos["nombre"]
+        precio_str = datos["precio"]
+        descripcion = datos["descripcion"]
+        new_id = self.catalogo_servicios.obtener_nuevo_id()
+        
+        try:
+            if not nombre:
+                raise ServicioInvalidoError("El nombre del servicio es obligatorio")
+            if len(nombre) < 3:
+                raise ServicioInvalidoError("El nombre del servicio debe tener al menos 3 caracteres")
+            if not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+", nombre):
+                raise ServicioInvalidoError("El nombre solo puede contener letras y espacios (sin números)")
+            
+            if not descripcion:
+                raise ServicioInvalidoError("La descripción del servicio es obligatoria")
+            if len(descripcion) < 5:
+                raise ServicioInvalidoError("La descripción debe tener al menos 5 caracteres")
+            
+            for servicio in self.catalogo_servicios.listar_servicios():
+                if servicio.name.lower() == nombre.lower():
+                    raise ServicioDuplicadoError(f"Ya existe un servicio con el nombre '{nombre}'")
+            
+            if not precio_str:
+                raise ServicioInvalidoError("El precio del servicio es obligatorio")
+            try:
+                precio = float(precio_str)
+            except ValueError:
+                raise ServicioInvalidoError("Ingrese un precio válido")
+            if precio <= 0:
+                raise ServicioInvalidoError("El precio debe ser mayor a 0")
+            if precio > 1000000:
+                raise ServicioInvalidoError("El precio no puede superar $1,000,000")
+            
+            if tipo_servicio == "Estándar":
+                servicio = ServicioEstandar(new_id, nombre, precio, descripcion)
+            elif tipo_servicio == "Premium":
+                servicio = ServicioPremium(new_id, nombre, precio, descripcion)
+            elif tipo_servicio == "Express":
+                servicio = ServicioExpress(new_id, nombre, precio, descripcion)
+            else:
+                raise ServicioInvalidoError("Tipo de servicio no válido")
+            
+            self.catalogo_servicios.agregar_servicio(servicio)
+            self.actualizar_tabla_servicios()
+            logging.info(f"[SIMULADOR] Servicio válido registrado: {nombre} (ID: {new_id}) - Tipo: {tipo_servicio}")
+            return True
+            
+        except (ServicioInvalidoError, ServicioDuplicadoError) as e:
+            logging.error(f"[SIMULADOR] Error al insertar servicio - Datos: Nombre='{nombre}', Precio='{precio_str}', Tipo='{tipo_servicio}' - Error: {str(e)}")
+            return False
+        except Exception as e:
+            logging.error(f"[SIMULADOR] Error inesperado al insertar servicio: {str(e)}")
+            return False
+    
+    def limpiar_formulario_simulador(self):
+        """Limpia todos los campos del formulario"""
+        for key, widget in self.widgets_simulador.items():
+            if isinstance(widget, ttk.Entry):
+                widget.delete(0, tk.END)
+            elif isinstance(widget, ttk.Combobox):
+                if widget.cget("values"):
+                    widget.set(widget.cget("values")[0] if widget.cget("values") else "")
+     
     def create_frame_logs(self):
         """Pestaña para visualizar logs del sistema"""
 
