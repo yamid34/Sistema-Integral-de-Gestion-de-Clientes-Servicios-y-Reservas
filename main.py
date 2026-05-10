@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
-from abc import ABC, abstractmethod
+from tkinter import ttk, messagebox
 import datetime
 import traceback
 import os
@@ -9,7 +8,6 @@ import time
 import logging
 import re
 from enum import Enum
-import json
 
 # ------------------------------------------------------------
 # Solución del Sistema de gestión de Clientes Servivios y Reservas
@@ -269,11 +267,6 @@ class CatalogoServicios:
                     return True
         return False
 
-# CLASE RESERVA
-# ============================================================
-# NUEVO MÓDULO DE RESERVAS
-# ============================================================
-
 class EstadoReserva(Enum):
     """Enumeración para los estados de una reserva"""
     PENDIENTE = "PENDIENTE"
@@ -281,7 +274,9 @@ class EstadoReserva(Enum):
     CANCELADA = "CANCELADA"
     COMPLETADA = "COMPLETADA"
 
-
+# ============================================================
+# EXCEPCIONES PERSONALIZADAS
+# ============================================================
 class ExcepcionReserva(Exception):
     """Excepción personalizada para errores de reserva"""
     pass
@@ -304,11 +299,6 @@ class ClienteNoEncontradoError(ExcepcionCliente):
     """Cliente no encontrado"""
     pass
 
-
-# ============================================================
-# EXCEPCIONES PERSONALIZADAS PARA SERVICIOS
-# ============================================================
-
 class ExcepcionServicio(Exception):
     """Excepción base de servicios"""
     pass
@@ -328,7 +318,10 @@ class ServicioNoEncontradoError(ExcepcionServicio):
     """Servicio no encontrado"""
     pass
 
-
+# CLASE RESERVA
+# ============================================================
+# NUEVO MÓDULO DE RESERVAS
+# ============================================================
 class Reserva:
     """Clase principal para gestionar reservas"""
     
@@ -648,7 +641,7 @@ class GestorReservas:
 # ============================================================
 
 
-# CLASE RESERVA (Original - Corregida)
+# CLASE RESERVA
 class ReservaOriginal(ABC):
     def __init__(self, client, service, duration):
         self.client = client
@@ -953,6 +946,11 @@ class main_window:
         self.frame_logs = ttk.Frame(self.notebook)
         self.notebook.add(self.frame_logs, text="📄 Logs")
         self.create_frame_logs()
+        
+        # PESTAÑA CERRAR SESIÓN
+        self.frame_logout = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_logout, text="🔒 Cerrar Sesión")
+        self.create_frame_logout()
         
     def create_frame_client(self):
         from_frame = ttk.LabelFrame(self.frame_clients, text="Registrar Nuevo Cliente", padding=10)
@@ -2626,6 +2624,55 @@ class main_window:
             self.text_logs.insert(tk.END, "El archivo de logs no existe todavía")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudieron cargar los logs:\n{str(e)}")
+            
+    def create_frame_logout(self):
+        """Pestaña cerrar sesión"""
+
+        # Frame principal
+        container = ttk.Frame(self.frame_logout)
+        container.pack(fill="both", expand=True)
+
+        # Caja central
+        box = tk.Frame(container, bg=self.COLOR_BLANCO, bd=2, relief="solid")
+
+        box.place(relx=0.5, rely=0.5, anchor="center", width=500, height=300)
+
+        # Icono
+        icon = tk.Label(box, text="🔒", font=("Arial", 50), bg=self.COLOR_BLANCO, fg=self.COLOR_ROJO)
+        icon.pack(pady=(30, 10))
+
+        # Título
+        title = tk.Label(box, text="Cerrar Sesión", font=("Arial", 22, "bold"), bg=self.COLOR_BLANCO, fg=self.COLOR_AZUL_TITULO)
+        title.pack()
+
+        # Descripción
+        desc = tk.Label(box, text="¿Desea cerrar la sesión actual del sistema?", font=("Arial", 11), bg=self.COLOR_BLANCO, fg=self.COLOR_GRIS)
+        desc.pack(pady=10)
+
+        # Botón cerrar sesión
+        btn_logout = tk.Button(box, text="Cerrar Sesión", font=("Arial", 12, "bold"), bg=self.COLOR_ROJO, fg="white",
+            activebackground=self.COLOR_ROJO_HOVER,
+            activeforeground="white",
+            relief="flat",
+            padx=20,
+            pady=10,
+            cursor="hand2",
+            command=self.cerrar_sesion
+        )
+
+        btn_logout.pack(pady=25)
+            
+    def cerrar_sesion(self):
+        """Cierra la sesión actual"""
+
+        confirmar = messagebox.askyesno("Cerrar Sesión", "¿Está seguro que desea cerrar sesión?")
+
+        if confirmar:
+            logging.info("Sesión cerrada correctamente")
+            messagebox.showinfo("Sesión Cerrada","La sesión se cerró correctamente")
+
+            # Cerrar ventana actual
+            self.view.destroy()
 
         
 # Ejecutar la aplicación
