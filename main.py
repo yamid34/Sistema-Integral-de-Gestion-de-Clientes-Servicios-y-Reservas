@@ -1884,7 +1884,9 @@ class main_window:
         selector_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         selector_frame.grid_columnconfigure(0, weight=1)
         
-        self.simulador_tipo = ttk.Combobox(selector_frame, values=["Cliente", "Servicio"], 
+        # AÑADIDO "Reserva" al combobox
+        self.simulador_tipo = ttk.Combobox(selector_frame,
+                                           values=["Cliente", "Servicio", "Reserva"],
                                            state="readonly", font=("Arial", 11))
         self.simulador_tipo.pack(fill="x", pady=5)
         self.simulador_tipo.set("Cliente")
@@ -2062,6 +2064,8 @@ class main_window:
             self.crear_formulario_cliente_simulador()
         elif tipo == "Servicio":
             self.crear_formulario_servicio_simulador()
+        elif tipo == "Reserva":
+            self.crear_formulario_reserva_simulador()
     
     def crear_formulario_cliente_simulador(self):
         """Crea el formulario para simular clientes"""
@@ -2134,6 +2138,86 @@ class main_window:
         req_frame.pack(fill="x", pady=10)
         ttk.Label(req_frame, text="* Campos obligatorios", font=("Arial", 8, "italic"), foreground="red").pack()
     
+    def crear_formulario_reserva_simulador(self):
+        """Crea el formulario para simular reservas"""
+
+        # Aviso si no hay clientes o servicios registrados
+        aviso = []
+        if not self.clients:
+            aviso.append("⚠ No hay clientes registrados.")
+        if not self.catalogo_servicios.listar_disponibles():
+            aviso.append("⚠ No hay servicios disponibles.")
+        if aviso:
+            ttk.Label(self.formulario_inner, text="\n".join(aviso),
+                      foreground="#b45309", font=("Arial", 9, "italic"),
+                      wraplength=300, justify="left").pack(fill="x", padx=5, pady=(0, 5))
+
+        # Cliente
+        cliente_frame = ttk.Frame(self.formulario_inner)
+        cliente_frame.pack(fill="x", pady=5)
+        ttk.Label(cliente_frame, text="Cliente:*", width=18, anchor="w").pack(side="left", padx=5)
+        clientes_lista = [f"{c._id} - {c._name}" for c in self.clients]
+        combo_cliente = ttk.Combobox(cliente_frame, values=clientes_lista, state="readonly")
+        combo_cliente.pack(side="left", padx=5, fill="x", expand=True)
+        if clientes_lista:
+            combo_cliente.set(clientes_lista[0])
+        self.widgets_simulador["cliente"] = combo_cliente
+
+        # Servicio (solo disponibles)
+        servicio_frame = ttk.Frame(self.formulario_inner)
+        servicio_frame.pack(fill="x", pady=5)
+        ttk.Label(servicio_frame, text="Servicio:*", width=18, anchor="w").pack(side="left", padx=5)
+        servicios_lista = [f"{s.id} - {s.name} (${s.price:,.0f}/h)"
+                          for s in self.catalogo_servicios.listar_disponibles()]
+        combo_servicio = ttk.Combobox(servicio_frame, values=servicios_lista, state="readonly")
+        combo_servicio.pack(side="left", padx=5, fill="x", expand=True)
+        if servicios_lista:
+            combo_servicio.set(servicios_lista[0])
+        self.widgets_simulador["servicio"] = combo_servicio
+
+        # Duración
+        dur_frame = ttk.Frame(self.formulario_inner)
+        dur_frame.pack(fill="x", pady=5)
+        ttk.Label(dur_frame, text="Duración (horas):*", width=18, anchor="w").pack(side="left", padx=5)
+        entry_dur = ttk.Entry(dur_frame)
+        entry_dur.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["duracion"] = entry_dur
+
+        # Fecha
+        fecha_frame = ttk.Frame(self.formulario_inner)
+        fecha_frame.pack(fill="x", pady=5)
+        ttk.Label(fecha_frame, text="Fecha (DD/MM/AAAA):*", width=18, anchor="w").pack(side="left", padx=5)
+        entry_fecha = ttk.Entry(fecha_frame)
+        entry_fecha.insert(0, datetime.date.today().strftime("%d/%m/%Y"))
+        entry_fecha.pack(side="left", padx=5, fill="x", expand=True)
+        self.widgets_simulador["fecha"] = entry_fecha
+
+        # Botón refrescar combos (por si se registraron clientes/servicios después de abrir el simulador)
+        btn_ref = ttk.Frame(self.formulario_inner)
+        btn_ref.pack(fill="x", pady=(5, 0))
+        ttk.Button(btn_ref, text="🔄 Refrescar listas",
+                   command=self._refrescar_combos_reserva_simulador).pack(side="left", padx=5)
+
+        ttk.Label(self.formulario_inner, text="* Campos obligatorios",
+                  font=("Arial", 8, "italic"), foreground="red").pack(pady=8)
+
+    def _refrescar_combos_reserva_simulador(self):
+        """Actualiza los combos de cliente y servicio dentro del formulario de reserva del simulador"""
+        if "cliente" in self.widgets_simulador:
+            nuevos_clientes = [f"{c._id} - {c._name}" for c in self.clients]
+            self.widgets_simulador["cliente"]["values"] = nuevos_clientes
+            if nuevos_clientes:
+                self.widgets_simulador["cliente"].set(nuevos_clientes[0])
+
+        if "servicio" in self.widgets_simulador:
+            nuevos_servicios = [f"{s.id} - {s.name} (${s.price:,.0f}/h)"
+                               for s in self.catalogo_servicios.listar_disponibles()]
+            self.widgets_simulador["servicio"]["values"] = nuevos_servicios
+            if nuevos_servicios:
+                self.widgets_simulador["servicio"].set(nuevos_servicios[0])
+
+        messagebox.showinfo("Actualizado", "Listas de clientes y servicios actualizadas.")
+    
     def agregar_dato_lista(self):
         """Agrega el dato actual del formulario a la lista acumulada"""
         tipo = self.simulador_tipo.get()
@@ -2177,6 +2261,23 @@ class main_window:
                 }
             }
             resumen = f"Tipo: {tipo_servicio}, Nombre: {nombre}, Precio: ${precio}, Desc: {descripcion[:30]}..."
+            
+        elif tipo == "Reserva":
+            cliente_sel  = self.widgets_simulador.get("cliente",  ttk.Combobox()).get()
+            servicio_sel = self.widgets_simulador.get("servicio", ttk.Combobox()).get()
+            duracion     = self.widgets_simulador.get("duracion", ttk.Entry()).get().strip()
+            fecha        = self.widgets_simulador.get("fecha",    ttk.Entry()).get().strip()
+
+            if not cliente_sel or not servicio_sel or not duracion or not fecha:
+                messagebox.showwarning("Campos incompletos", "Por favor complete todos los campos de la reserva")
+                return
+
+            dato = {"tipo": "Reserva",
+                    "datos": {"cliente": cliente_sel, "servicio": servicio_sel,
+                               "duracion": duracion, "fecha": fecha}}
+            resumen = f"Cliente: {cliente_sel.split(' - ')[1] if ' - ' in cliente_sel else cliente_sel}, "\
+                      f"Servicio: {servicio_sel.split(' - ')[1].split(' (')[0] if ' - ' in servicio_sel else servicio_sel}, "\
+                      f"Duración: {duracion}h, Fecha: {fecha}"
         else:
             return
         
@@ -2204,8 +2305,11 @@ class main_window:
             for i, dato in enumerate(self.datos_acumulados, 1):
                 if dato["tipo"] == "Cliente":
                     resumen = f"Nombre: {dato['datos']['nombre']}, Email: {dato['datos']['email']}, Tel: {dato['datos']['phone']}"
-                else:
+                elif dato["tipo"] == "Servicio":
                     resumen = f"Tipo: {dato['datos']['tipo_servicio']}, Nombre: {dato['datos']['nombre']}, Precio: ${dato['datos']['precio']}"
+                else:
+                    d = dato["datos"]
+                    resumen = f"Cliente: {d['cliente']}, Servicio: {d['servicio']}, Duración: {d['duracion']}h"
                 self.lista_datos_tree.insert("", "end", iid=str(i), values=(i, dato["tipo"], resumen))
             
             self.actualizar_total_lista()
@@ -2236,19 +2340,20 @@ class main_window:
         
         for dato in self.datos_acumulados:
             if dato["tipo"] == "Cliente":
-                if self.insertar_cliente_simulado(dato["datos"]):
-                    correctos += 1
-                    self.simulador_datos_correctos += 1
-                else:
-                    incorrectos += 1
-                    self.simulador_datos_incorrectos += 1
+                ok = self.insertar_cliente_simulado(dato["datos"])
             elif dato["tipo"] == "Servicio":
-                if self.insertar_servicio_simulado(dato["datos"]):
-                    correctos += 1
-                    self.simulador_datos_correctos += 1
-                else:
-                    incorrectos += 1
-                    self.simulador_datos_incorrectos += 1
+                ok = self.insertar_servicio_simulado(dato["datos"])
+            elif dato["tipo"] == "Reserva":
+                ok = self.insertar_reserva_simulada(dato["datos"])
+            else:
+                ok = False
+
+            if ok:
+                correctos += 1
+                self.simulador_datos_correctos += 1
+            else:
+                incorrectos += 1
+                self.simulador_datos_incorrectos += 1
         
         self.actualizar_estadisticas()
         self.datos_acumulados.clear()
@@ -2256,6 +2361,8 @@ class main_window:
         self.actualizar_total_lista()
         self.refrescar_clientes_reserva()
         self.refrescar_servicios_reserva()
+        self.actualizar_tabla_reservas()
+        self.actualizar_resumen_reservas()
         self.load_logs()
         
         messagebox.showinfo("Inserción Masiva Completada", 
@@ -2371,14 +2478,97 @@ class main_window:
             logging.error(f"[SIMULADOR] Error inesperado al insertar servicio: {str(e)}")
             return False
     
+    def insertar_reserva_simulada(self, datos):
+        """
+        Inserta una reserva simulada con validaciones completas.
+        Retorna True si fue exitoso, False si falló (el error queda en el log).
+        """
+        cliente_sel  = datos.get("cliente", "")
+        servicio_sel = datos.get("servicio", "")
+        duracion_str = datos.get("duracion", "")
+        fecha_str    = datos.get("fecha", "")
+
+        try:
+            # ---- Validar y obtener cliente ----
+            if not cliente_sel:
+                raise ExcepcionReserva("Debe seleccionar un cliente")
+
+            try:
+                cliente_id = int(cliente_sel.split(" - ")[0])
+            except (ValueError, IndexError):
+                raise ExcepcionReserva(f"Formato de cliente inválido: '{cliente_sel}'")
+
+            cliente = next((c for c in self.clients if c._id == cliente_id), None)
+            if not cliente:
+                raise ExcepcionReserva(f"Cliente con ID {cliente_id} no encontrado en el sistema")
+
+            # ---- Validar y obtener servicio ----
+            if not servicio_sel:
+                raise ExcepcionReserva("Debe seleccionar un servicio")
+
+            try:
+                servicio_id = int(servicio_sel.split(" - ")[0])
+            except (ValueError, IndexError):
+                raise ExcepcionReserva(f"Formato de servicio inválido: '{servicio_sel}'")
+
+            servicio = self.catalogo_servicios.buscar_servicio(servicio_id)
+            if not servicio:
+                raise ExcepcionReserva(f"Servicio con ID {servicio_id} no encontrado en el catálogo")
+            if not servicio.disponible:
+                raise ExcepcionReserva(f"El servicio '{servicio.name}' no está disponible")
+
+            # ---- Validar duración ----
+            if not duracion_str:
+                raise ExcepcionReserva("La duración es obligatoria")
+            try:
+                duracion = float(duracion_str)
+            except ValueError:
+                raise ExcepcionReserva(f"Duración inválida: '{duracion_str}'. Debe ser un número")
+            if duracion <= 0:
+                raise ExcepcionReserva("La duración debe ser mayor a 0 horas")
+            if duracion > 24:
+                raise ExcepcionReserva("La duración máxima por reserva es de 24 horas")
+
+            # ---- Validar fecha ----
+            if not fecha_str:
+                raise ExcepcionReserva("La fecha es obligatoria")
+            try:
+                fecha = datetime.datetime.strptime(fecha_str, "%d/%m/%Y").date()
+            except ValueError:
+                raise ExcepcionReserva(f"Formato de fecha inválido: '{fecha_str}'. Use DD/MM/AAAA")
+
+            # ---- Crear reserva ----
+            reserva = self.gestor_reservas.crear_reserva(cliente, servicio, duracion, fecha)
+            logging.info(
+                f"[SIMULADOR] Reserva válida creada: #{reserva.id} - "
+                f"Cliente: {cliente._name} - Servicio: {servicio.name} - "
+                f"Duración: {duracion}h - Fecha: {fecha_str}"
+            )
+            return True
+
+        except ExcepcionReserva as e:
+            logging.error(
+                f"[SIMULADOR] Error al insertar reserva - "
+                f"Cliente='{cliente_sel}', Servicio='{servicio_sel}', "
+                f"Duración='{duracion_str}', Fecha='{fecha_str}' - {str(e)}"
+            )
+            return False
+        except Exception as e:
+            logging.error(f"[SIMULADOR] Error inesperado al insertar reserva: {str(e)}")
+            return False
+        
     def limpiar_formulario_simulador(self):
         """Limpia todos los campos del formulario"""
         for key, widget in self.widgets_simulador.items():
             if isinstance(widget, ttk.Entry):
                 widget.delete(0, tk.END)
+                # Restaurar fecha por defecto en el campo de reserva
+                if key == "fecha":
+                    widget.insert(0, datetime.date.today().strftime("%d/%m/%Y"))
             elif isinstance(widget, ttk.Combobox):
-                if widget.cget("values"):
-                    widget.set(widget.cget("values")[0] if widget.cget("values") else "")
+                vals = widget.cget("values")
+                if vals:
+                    widget.set(vals[0])
      
     def create_frame_logs(self):
         """Pestaña para visualizar logs del sistema"""
