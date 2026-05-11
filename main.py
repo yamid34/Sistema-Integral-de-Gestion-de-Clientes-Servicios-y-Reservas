@@ -396,7 +396,7 @@ class Reserva:
         self._fecha_confirmacion = datetime.datetime.now()
         
         # Calcular costo total
-        self._costo_total = self.calcular_costo()
+        self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
         
     def cancelar(self):
         """
@@ -437,7 +437,7 @@ class Reserva:
             float: Costo total con impuesto
         """
         if self._costo_total is None:
-            self._costo_total = self.calcular_costo()
+            self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
         return self._costo_total * (1 + tasa_impuesto)
     
     def calcular_costo_con_descuento(self, porcentaje_descuento=0):
@@ -451,7 +451,7 @@ class Reserva:
             float: Costo total con descuento
         """
         if self._costo_total is None:
-            self._costo_total = self.calcular_costo()
+            self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
         return self._costo_total * (1 - porcentaje_descuento)
     
     def obtener_info_completa(self):
