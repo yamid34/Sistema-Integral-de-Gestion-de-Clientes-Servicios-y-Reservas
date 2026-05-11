@@ -682,32 +682,31 @@ class main_window:
         """========================
         COLORES DEL SISTEMA
         ========================"""
-
         # Azules principales
-        self.COLOR_AZUL_CLARO = "#dbeafe"
-        self.COLOR_AZUL = "#60a5fa"
-        self.COLOR_AZUL_HOVER = "#3b82f6"
-        self.COLOR_AZUL_OSCURO = "#2563eb"
-        self.COLOR_AZUL_TITULO = "#1e3a8a"
+        self.COLOR_AZUL_CLARO = "#E0F2FE"
+        self.COLOR_AZUL = "#3B82F6"
+        self.COLOR_AZUL_HOVER = "#2563EB"
+        self.COLOR_AZUL_OSCURO = "#1D4ED8"
+        self.COLOR_AZUL_TITULO = "#0F172A"
 
         # Blancos y fondos
-        self.COLOR_BLANCO = "#ffffff"
-        self.COLOR_FONDO = "#f0f0f0"
-        self.COLOR_HEADER = "#f5f5f5"
-        
+        self.COLOR_BLANCO = "#FFFFFF"
+        self.COLOR_FONDO = "#F8FAFC"
+        self.COLOR_HEADER = "#F1F5F9"
+
         # Rojos
-        self.COLOR_ROJO = "#dc2626"
-        self.COLOR_ROJO_HOVER = "#b91c1c"
-        self.COLOR_ROJO_CLARO = "#fecaca"
-        
+        self.COLOR_ROJO = "#EF4444"
+        self.COLOR_ROJO_HOVER = "#DC2626"
+        self.COLOR_ROJO_CLARO = "#FEE2E2"
+
         # Verde
-        self.COLOR_VERDE = "#10b981"
+        self.COLOR_VERDE = "#10B981"
         self.COLOR_VERDE_HOVER = "#059669"
 
         # Grises
-        self.COLOR_GRIS = "#555555"
-        self.COLOR_GRIS_OSCURO = "#1f2937"
-        self.COLOR_BORDE = "#d0d0d0"
+        self.COLOR_GRIS = "#64748B"
+        self.COLOR_GRIS_OSCURO = "#1E293B"
+        self.COLOR_BORDE = "#CBD5E1"
 
         """========================
         INICIALIZAR VENTANA
