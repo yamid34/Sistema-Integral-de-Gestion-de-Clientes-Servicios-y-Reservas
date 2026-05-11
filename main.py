@@ -1140,8 +1140,19 @@ class main_window:
 
             reservas_cliente = self.gestor_reservas.listar_reservas_por_cliente(cliente._id)
 
-            if reservas_cliente:
-                raise ClienteInvalidoError("No se puede eliminar un cliente con reservas asociadas")
+            # Validar solo reservas activas
+            reservas_activas = [
+                    reserva for reserva in reservas_cliente
+                    if reserva.estado not in (
+                        EstadoReserva.CANCELADA.value,
+                        EstadoReserva.COMPLETADA.value
+                    )
+                ]
+
+            if reservas_activas:
+                    raise ClienteInvalidoError(
+                        "No se puede eliminar un cliente con reservas activas"
+                    )
 
             # ====================================
             # CONFIRMAR ELIMINACIÓN
