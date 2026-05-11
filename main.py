@@ -396,7 +396,7 @@ class Reserva:
         self._fecha_confirmacion = datetime.datetime.now()
         
         # Calcular costo total
-        self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
+        self._costo_total = self.calcular_costo()
         
     def cancelar(self):
         """
@@ -437,7 +437,7 @@ class Reserva:
             float: Costo total con impuesto
         """
         if self._costo_total is None:
-            self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
+            self._costo_total = self.calcular_costo()
         return self._costo_total * (1 + tasa_impuesto)
     
     def calcular_costo_con_descuento(self, porcentaje_descuento=0):
@@ -451,7 +451,7 @@ class Reserva:
             float: Costo total con descuento
         """
         if self._costo_total is None:
-            self._costo_total = self._servicio.calculate_daily_cost(self._duracion_horas)
+            self._costo_total = self.calcular_costo()
         return self._costo_total * (1 - porcentaje_descuento)
     
     def obtener_info_completa(self):
@@ -472,7 +472,43 @@ class Reserva:
     def __str__(self):
         return f"Reserva #{self._id} - {self._cliente._name} - {self._servicio.name} - {self.estado}"
 
+    def calcular_costo(self):
+        """
+        Calcula el costo base de la reserva
+        """
+        if hasattr(self._servicio, 'calculate_daily_cost'):
+            return self.calcular_costo()
 
+        return self._servicio.price * self._duracion_horas
+
+    def descripcion(self):
+        """
+        Retorna descripción de la reserva
+        """
+        return (
+            f"Reserva del servicio "
+            f"{self._servicio.name} "
+            f"por {self._duracion_horas} horas"
+        )
+
+    def validar_parametros(self):
+        """
+        Valida los parámetros de la reserva
+        """
+        return (
+            self._duracion_horas > 0 and
+            self._servicio.disponible
+        )
+
+    def calcular_costo_total(self, tasa_impuesto=0.19, porcentaje_descuento=0):
+        """
+        Calcula costo final con impuesto y descuento
+        """
+        base = self.calcular_costo()
+
+        con_impuesto = base * (1 + tasa_impuesto)
+
+        return con_impuesto * (1 - porcentaje_descuento)
 class GestorReservas:
     """Clase para gestionar el conjunto de reservas"""
     
@@ -640,65 +676,6 @@ class GestorReservas:
 # ============================================================
 # FIN MÓDULO DE RESERVAS
 # ============================================================
-
-
-# CLASE RESERVA
-class ReservaOriginal(ABC):
-    def __init__(self, client, service, duration):
-        self.client = client
-        self.service = service
-        self.duration = duration
-        self.status = "PENDIENTE"
-
-    def cancel(self):
-        self.status = "CANCELADA"
-
-    def show(self):
-        return f"{self.client.show_info()} - {self.service.show_info()} - Estado: {self.status}"
-
-    @abstractmethod
-    def calculate_cost(self, duration):
-        pass
-
-    @abstractmethod
-    def description(self):
-        pass
-
-    @abstractmethod
-    def validate_parameters(self, **kwargs):
-        pass
-
-    # Métodos sobrecargados para cálculo de costos
-    def calculate_cost_with_tax(self, duration, tax=0.19):
-        """Calcula costo con impuesto"""
-        base = self.calculate_cost(duration)
-        return base * (1 + tax)
-
-    def calculate_cost_with_discount(self, duration, discount=0):
-        """Calcula costo con descuento (método sobrecargado)"""
-        base = self.calculate_cost(duration)
-        return base * (1 - discount)
-
-    def calculate_total_cost(self, duration, tax=0.19, discount=0):
-        """Calcula costo con impuesto y descuento (sobrecarga)"""
-        base = self.calculate_cost(duration)
-        with_tax = base * (1 + tax)
-        return with_tax * (1 - discount)
-
-
-# IMPLEMENTACIÓN CONCRETA DE RESERVA
-class ReservaEstandar(ReservaOriginal):
-    def calculate_cost(self, duration):
-        if hasattr(self.service, 'calculate_daily_cost'):
-            return self.service.calculate_daily_cost(duration)
-        return self.service.price * duration
-
-    def description(self):
-        return f"Reserva estándar del servicio {self.service.name} por {self.duration} horas"
-
-    def validate_parameters(self, **kwargs):
-        duration = kwargs.get('duration', self.duration)
-        return duration > 0 and self.service.disponible
 
 class main_window:
     def __init__(self, view):
