@@ -74,7 +74,7 @@ class Entidad(ABC):
     def show_info(self):
         pass
 
-
+# Clase que representa la informacion basica de cada cliente
 # CLASE CLIENTE
 class Cliente(Entidad):
     def __init__(self, id, name, email, phone):
@@ -509,6 +509,7 @@ class Reserva:
         con_impuesto = base * (1 + tasa_impuesto)
 
         return con_impuesto * (1 - porcentaje_descuento)
+# Clase que representa la informacion basica de cada cliente        
 class GestorReservas:
     """Clase para gestionar el conjunto de reservas"""
     
@@ -1267,7 +1268,7 @@ class main_window:
         self.table_service.configure(yscrollcommand=scrollbar.set)
         self.table_service.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-      
+    # Metodo para registrar nuevos servicios dentro del sistema
     def register_service(self):
         """Registra un nuevo servicio en el sistema"""
         try:
@@ -1648,7 +1649,7 @@ class main_window:
         self.reserva_servicio_combo['values'] = servicios_lista
         if servicios_lista:
             self.reserva_servicio_combo.set(servicios_lista[0])
-    
+    # Metodo encargado de crear una nueva reserva
     def crear_reserva(self):
         """Crea una nueva reserva"""
         try:
@@ -1712,7 +1713,7 @@ class main_window:
         except Exception as e:
             logging.error(f"Error inesperado: {str(e)}")
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
-    
+    # Metodo que confirma una reserva seleccionada
     def confirmar_reserva(self):
         """Confirma la reserva seleccionada"""
         selection = self.table_reservas.selection()
@@ -1745,7 +1746,7 @@ class main_window:
         except Exception as e:
             logging.error(f"Error inesperado: {str(e)}")
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
-    
+    # Metodo para cancelar una reserva registrada
     def cancelar_reserva(self):
         """Cancela la reserva seleccionada"""
         selection = self.table_reservas.selection()
@@ -1770,7 +1771,7 @@ class main_window:
         except Exception as e:
             logging.error(f"Error inesperado: {str(e)}")
             messagebox.showerror("Error", f"Error inesperado: {str(e)}")
-    
+    # Metodo que cambia el estado de una reserva a completada
     def completar_reserva(self):
         """Marca como completada la reserva seleccionada"""
         selection = self.table_reservas.selection()
